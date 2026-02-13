@@ -1,0 +1,30 @@
+harvester:
+  manufacturer: Powercast
+  model: P2110B
+  description: "Powercast P2110B RF Energy Harvester Module"
+  datasheet_url: "https://www.powercastco.com/wp-content/uploads/2020/11/P2110B_Datasheet.pdf"
+input:
+  condition: unbalanced
+  impedance_ohm: 50
+  power_abs_max_dbm: 23
+  power_max_dbm: 10
+  power_min_dbm: -12
+  frequency_start_mhz: 902
+  frequency_mhz: 915
+  frequency_stop_mhz: 928
+capacitor:
+  leakage_max_ua: 1
+  leakage_test_voltage_v: 1
+  esr_max_ohm: 0.2
+  voltage_nominal_min_v: 1.02
+  voltage_nominal_max_v: 1.25
+  clamping_voltage_v: 1.8
+pmu:
+  type: integrated
+  resettable: true
+  interrupt_pin: true
+  output_voltage_adjustable: true
+output:
+  nominal_v: 3.3
+  min_v: 2.0
+  max_v: 5.5

@@ -1,0 +1,38 @@
+table=SMS7621005LF, frequency_mhz=912.5, tuning_frequency_mhz=915.0, target_voltage_mv=1500.0, source=measured, n_points=41
+  best_fit=piecewise, r2=0.9951248827392147, function=$y=0;\ y=\eta(x-x_s);\ y=y_{\max}$
+  params: x_sens=273.3333333333333, x_sat=890.2222222222222, eta=0.8072846864087904, y_max=498.0049532157338
+
+  python:
+  ```python
+  import numpy as np
+  x_sens = 273.3333333333333
+  x_sat = 890.2222222222222
+  eta = 0.8072846864087904
+  y_max = 498.0049532157338
+  def f(x):
+      return np.where(
+          x < x_sens,
+          0.0,
+          np.where(x <= x_sat, eta * (x - x_sens), y_max),
+      )
+  ```
+
+table=SMS7630005LF, frequency_mhz=912.5, tuning_frequency_mhz=915.0, target_voltage_mv=1500.0, source=measured, n_points=41
+  best_fit=piecewise, r2=0.9915097136750198, function=$y=0;\ y=\eta(x-x_s);\ y=y_{\max}$
+  params: x_sens=97.77777777777777, x_sat=780.4444444444443, eta=0.5464141694866874, y_max=373.0187397029119
+
+  python:
+  ```python
+  import numpy as np
+  x_sens = 97.77777777777777
+  x_sat = 780.4444444444443
+  eta = 0.5464141694866874
+  y_max = 373.0187397029119
+  def f(x):
+      return np.where(
+          x < x_sens,
+          0.0,
+          np.where(x <= x_sat, eta * (x - x_sens), y_max),
+      )
+  ```
+

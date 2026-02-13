@@ -1,0 +1,18 @@
+\begin{tikzpicture}
+\begin{axis}[
+  xlabel={P_rf (uW)},
+  ylabel={P_dc (uW)},
+  grid=both,
+  xmin=0,
+  xmax=1000,
+  ymin=0,
+  ymax=552.484,
+]
+% table=SMS7630005LF, f=912.5 MHz, tune=915.0 MHz, t=1500.0 mV, source=measured, fit=piecewise
+\addplot[domain=10:1000] {(x < 97.7778 ? 0 : (x <= 780.444 ? 0.546414*(x-97.7778) : 373.019))};
+
+% table=SMS7621005LF, f=912.5 MHz, tune=915.0 MHz, t=1500.0 mV, source=measured, fit=piecewise
+\addplot[domain=10:1000] {(x < 273.333 ? 0 : (x <= 890.222 ? 0.807285*(x-273.333) : 498.005))};
+
+\end{axis}
+\end{tikzpicture}

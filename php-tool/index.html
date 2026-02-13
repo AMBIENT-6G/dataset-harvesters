@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harvester CSV Export</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f3ef;
+      --card: #ffffff;
+      --ink: #1a1a1a;
+      --accent: #1f4f7a;
+      --muted: #5b5b5b;
+      --border: #d8d1c7;
+    }
+    body {
+      margin: 0;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    .wrap {
+      max-width: 1080px;
+      margin: 32px auto 48px;
+      padding: 0 20px;
+    }
+    header {
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0 0 6px;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
+    }
+    fieldset {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin: 0 0 18px;
+    }
+    legend {
+      font-weight: 600;
+      padding: 0 6px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px 16px;
+    }
+    label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 14px;
+    }
+    select {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: #fff;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #183c5c;
+    }
+    button.secondary {
+      background: #dfe6ee;
+      color: #1f2a35;
+    }
+    button.secondary:hover {
+      background: #c8d2dd;
+    }
+    .note {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .errors {
+      background: #fff3f3;
+      border: 1px solid #f1b4b4;
+      color: #8a1c1c;
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      white-space: pre-line;
+    }
+    .hidden {
+      display: none;
+    }
+    .chart-area {
+      margin-top: 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: #fbfaf8;
+    }
+    .chart-area canvas {
+      width: 100%;
+      height: 360px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Harvester CSV Export</h1>
+      <p>Select one or more harvesters and parameters, then download a CSV export or plot a chart.</p>
+    </header>
+
+    <div class="card">
+      <div id="error" class="errors hidden"></div>
+      <p id="loading-note" class="note">Loading JSON data...</p>
+      <p id="empty-note" class="note hidden">No data available to export.</p>
+
+      <form id="export-form">
+        <fieldset>
+          <legend>Harvesters</legend>
+          <div id="harvester-list" class="grid"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Parameters (CSV export)</legend>
+          <div id="column-list" class="grid"></div>
+        </fieldset>
+
+        <div class="actions">
+          <label>
+            <input type="checkbox" id="include-harvester" checked>
+            Include harvester name column
+          </label>
+          <button type="button" id="download-button">Download CSV</button>
+        </div>
+        <p class="note">Tip: selecting multiple harvesters automatically adds the harvester column to the export.</p>
+
+        <fieldset>
+          <legend>Chart</legend>
+          <div class="grid">
+            <div class="field">
+              <span>X axis</span>
+              <select id="x-axis"></select>
+            </div>
+            <div class="field">
+              <span>Y axis</span>
+              <select id="y-axis"></select>
+            </div>
+          </div>
+          <div class="actions" style="margin-top: 12px;">
+            <button type="button" id="plot-button" class="secondary">Plot Chart</button>
+          </div>
+          <p class="note">Chart uses numeric values only. Choose numeric columns for X/Y axes.</p>
+        </fieldset>
+
+        <div class="chart-area">
+          <canvas id="harvester-chart"></canvas>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const HARVESTERS = [
+      { name: 'AEM40940', file: './json-export/AEM40940.json' },
+      { name: 'P1110B', file: './json-export/P1110B.json' },
+      { name: 'P2110B', file: './json-export/P2110B.json' },
+      { name: 'SMS7621005LF', file: './json-export/SMS7621005LF.json' },
+      { name: 'SMS7630005LF', file: './json-export/SMS7630005LF.json' },
+      { name: 'sSUHFIPTIVA0', file: './json-export/sSUHFIPTIVA0.json' }
+    ];
+
+    const errorBox = document.getElementById('error');
+    const loadingNote = document.getElementById('loading-note');
+    const emptyNote = document.getElementById('empty-note');
+    const harvesterList = document.getElementById('harvester-list');
+    const columnList = document.getElementById('column-list');
+    const includeHarvester = document.getElementById('include-harvester');
+    const downloadButton = document.getElementById('download-button');
+    const xAxisSelect = document.getElementById('x-axis');
+    const yAxisSelect = document.getElementById('y-axis');
+    const plotButton = document.getElementById('plot-button');
+    const chartCanvas = document.getElementById('harvester-chart');
+
+    const harvesterData = new Map();
+    let chartInstance = null;
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.classList.remove('hidden');
+    }
+
+    function clearError() {
+      errorBox.textContent = '';
+      errorBox.classList.add('hidden');
+    }
+
+    function renderCheckboxes(container, items, name) {
+      container.innerHTML = '';
+      items.forEach((item) => {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.name = name;
+        input.value = item;
+        input.checked = true;
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(item));
+        container.appendChild(label);
+      });
+    }
+
+    function renderSelect(select, items, fallbackIndex) {
+      select.innerHTML = '';
+      items.forEach((item, idx) => {
+        const option = document.createElement('option');
+        option.value = item;
+        option.textContent = item;
+        select.appendChild(option);
+        if (idx === fallbackIndex) {
+          select.value = item;
+        }
+      });
+    }
+
+    function selectedValues(container) {
+      return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map((input) => input.value);
+    }
+
+    function updateHarvesterToggle() {
+      const selected = selectedValues(harvesterList);
+      if (selected.length > 1) {
+        includeHarvester.checked = true;
+        includeHarvester.disabled = true;
+      } else {
+        includeHarvester.disabled = false;
+      }
+    }
+
+    function getColor(index) {
+      const palette = ['#1f4f7a', '#b4573c', '#5b7c32', '#7a4f8b', '#d48c2d', '#2c6d7a'];
+      return palette[index % palette.length];
+    }
+
+    function csvEscape(value) {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      const text = String(value);
+      if (/[",\n\r]/.test(text)) {
+        return '"' + text.replace(/"/g, '""') + '"';
+      }
+      return text;
+    }
+
+    function buildCsv(selectedHarvesters, selectedColumns) {
+      const includeColumn = includeHarvester.checked || selectedHarvesters.length > 1;
+      const header = includeColumn ? ['harvester', ...selectedColumns] : [...selectedColumns];
+      const lines = [header.map(csvEscape).join(',')];
+
+      selectedHarvesters.forEach((name) => {
+        const rows = harvesterData.get(name) || [];
+        rows.forEach((row) => {
+          const line = [];
+          if (includeColumn) {
+            line.push(csvEscape(name));
+          }
+          selectedColumns.forEach((col) => {
+            line.push(csvEscape(row[col] ?? ''));
+          });
+          lines.push(line.join(','));
+        });
+      });
+
+      return lines.join('\n');
+    }
+
+    function downloadCsv() {
+      clearError();
+      const selectedHarvesters = selectedValues(harvesterList);
+      const selectedColumns = selectedValues(columnList);
+
+      if (selectedHarvesters.length === 0) {
+        showError('Select at least one harvester.');
+        return;
+      }
+      if (selectedColumns.length === 0) {
+        showError('Select at least one parameter.');
+        return;
+      }
+
+      const csv = buildCsv(selectedHarvesters, selectedColumns);
+      if (!csv.trim()) {
+        showError('No data available for the selected harvesters.');
+        return;
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'harvester-data-' + new Date().toISOString().replace(/[:.]/g, '-') + '.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function plotChart() {
+      clearError();
+      const selectedHarvesters = selectedValues(harvesterList);
+      if (selectedHarvesters.length === 0) {
+        showError('Select at least one harvester.');
+        return;
+      }
+      if (!xAxisSelect.value || !yAxisSelect.value) {
+        showError('Select both an X axis and Y axis.');
+        return;
+      }
+
+      const xKey = xAxisSelect.value;
+      const yKey = yAxisSelect.value;
+      const series = new Map();
+
+      selectedHarvesters.forEach((name) => {
+        const rows = harvesterData.get(name) || [];
+        rows.forEach((row) => {
+          const xVal = Number.parseFloat(row[xKey]);
+          const yVal = Number.parseFloat(row[yKey]);
+          if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) {
+            return;
+          }
+          if (!series.has(name)) {
+            series.set(name, []);
+          }
+          series.get(name).push({ x: xVal, y: yVal });
+        });
+      });
+
+      if (series.size === 0) {
+        showError('No numeric data available for the selected axes.');
+        return;
+      }
+
+      const datasets = [];
+      let index = 0;
+      for (const [label, points] of series.entries()) {
+        points.sort((a, b) => a.x - b.x);
+        const color = getColor(index);
+        datasets.push({
+          label,
+          data: points,
+          borderColor: color,
+          backgroundColor: color,
+          pointRadius: 3,
+          showLine: false,
+        });
+        index += 1;
+      }
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(chartCanvas.getContext('2d'), {
+        type: 'scatter',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: xKey },
+            },
+            y: {
+              title: { display: true, text: yKey },
+            },
+          },
+        },
+      });
+    }
+
+    async function loadData() {
+      clearError();
+      loadingNote.classList.remove('hidden');
+
+      const columns = new Set();
+      const loadErrors = [];
+
+      for (const harvester of HARVESTERS) {
+        try {
+          const response = await fetch(harvester.file, { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
+          }
+          const payload = await response.json();
+          if (!Array.isArray(payload)) {
+            throw new Error('Unexpected JSON format');
+          }
+          harvesterData.set(harvester.name, payload);
+          payload.forEach((row) => {
+            if (row && typeof row === 'object') {
+              Object.keys(row).forEach((key) => columns.add(key));
+            }
+          });
+        } catch (err) {
+          loadErrors.push(harvester.name + ': ' + (err instanceof Error ? err.message : 'failed to load'));
+        }
+      }
+
+      loadingNote.classList.add('hidden');
+
+      if (loadErrors.length) {
+        showError('Some JSON files failed to load:\n' + loadErrors.join('\n'));
+      }
+
+      if (harvesterData.size === 0) {
+        emptyNote.classList.remove('hidden');
+        return;
+      }
+
+      const harvesterNames = HARVESTERS.filter((item) => harvesterData.has(item.name)).map((item) => item.name);
+      const columnListData = Array.from(columns);
+
+      renderCheckboxes(harvesterList, harvesterNames, 'harvesters');
+      renderCheckboxes(columnList, columnListData, 'columns');
+      renderSelect(xAxisSelect, columnListData, 0);
+      renderSelect(yAxisSelect, columnListData, columnListData.length > 1 ? 1 : 0);
+
+      updateHarvesterToggle();
+      harvesterList.addEventListener('change', updateHarvesterToggle);
+    }
+
+    downloadButton.addEventListener('click', downloadCsv);
+    plotButton.addEventListener('click', plotChart);
+    loadData();
+  </script>
+</body>
+</html>
