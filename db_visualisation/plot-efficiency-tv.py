@@ -6,11 +6,11 @@ import numpy as np
 db_path = "data.db"
 conn = sqlite3.connect(db_path)
 
-f_min = 900
-f_max = 920
+f_min = 2499
+f_max = 2501
 
-v_min = 1600
-v_max = 1700
+v_min = 0
+v_max = 2000
 
 # Stel marge in (bijvoorbeeld ±50 mV)
 target_voltage_marge = 0.05

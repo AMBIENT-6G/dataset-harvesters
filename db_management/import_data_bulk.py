@@ -11,7 +11,8 @@ import glob
 #----------------------------------------------------#
 REPLACE = True
 #-------------------sSUHFIPTIVA0---------------------#
-# data_name = "sSUHFIPTIVA0_900_measured_t1600.csv"
+# data_name = "sSUHFIPTIVA0_875_measured_t*.csv"
+data_name = "sSUHFIPTIVA0_2500_measured_t*.csv"
 #---------------------AEM40940-----------------------#
 # data_name = "AEM40940_867_datasheet_t0.csv"
 # data_name = "AEM40940_921_datasheet_t0.csv"
@@ -27,7 +28,7 @@ REPLACE = True
 #----------------------------------------------------#
 #-------------------SMS7621-005LF--------------------# (HIGH POWER DIODE)
 # data_name = "SMS7621005LF_915_measured_t*.csv"
-data_name = "SMS7621005LF_2450_measured_t*.csv"
+# data_name = "SMS7621005LF_2450_measured_t*.csv"
 #----------------------------------------------------#
 
 

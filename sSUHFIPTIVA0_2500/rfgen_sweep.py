@@ -28,17 +28,18 @@ resource_string_5 = 'RSNRP::0x0095::104015::INSTR'  # R&S Powersensor NRP-Z86
 instr = RsInstrument(resource_string_1, True, False)
 
 ################################################
-FREQ = 917e6
-LVL = -20
-
 start_lvl = -30
 stop_lvl = 0
 
-start_freq = 850e6
-stop_freq = 950e6
+START_VOLTAGE = 250
+STOP_VOLTAGE = 2000 #2000
+VOLTAGE_STEP = 250
+
+start_freq = 2450e6
+stop_freq = 2550e6
 FREQ_STEP = 12.5e6
 
-Cable_loss = 0.55
+Cable_loss = 1.06
 ################################################
 
 #ser = serial.Serial('COM4', 115200, timeout=1)  # Change 'COM1' to your serial port
@@ -108,7 +109,7 @@ time.sleep(1)
 
 output(1)
 
-tvbuffer = np.linspace(250,2000,8)
+tvbuffer = np.linspace(START_VOLTAGE,STOP_VOLTAGE,int((STOP_VOLTAGE-START_VOLTAGE)/VOLTAGE_STEP) + 1)
 # print(tvbuffer)
 
 # target_voltage = 1000
@@ -125,6 +126,11 @@ for target_voltage in tvbuffer:
     # Sweep
     for freq in freq_buffer:
 
+        change_freq_lvl(freq, start_lvl+Cable_loss)
+        
+        # print("Wait 5 seconds before starting the new measurement!")
+        # time.sleep(5)
+
         for lvl in lvl_buffer:
 
             #   Change freq and lvl SMC100A
@@ -140,6 +146,12 @@ for target_voltage in tvbuffer:
             vals = get_ep_data()
 
             while vals == None:
+                print("Try again ... ")
+                time.sleep(1)
+                vals = get_ep_data()
+
+            # As long as output power is higher then input power
+            while vals['pwr_pw']/1e12 > (10**(lvl/10)/1e3):
                 print("Try again ... ")
                 time.sleep(1)
                 vals = get_ep_data()
