@@ -1,4 +1,4 @@
-# Dataset Several Harvesters
+# Dataset Several (RF) Harvesters
 
 This repository presents the evaluation and data collection of multiple energy harvesters, focusing on their performance under representative operating conditions. The measurements aim to provide a comparative overview of the capabilities and limitations of the different harvesting solutions. An overview of the evaluated harvesters and their key characteristics is provided in the table below.
 
