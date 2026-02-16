@@ -1,3 +1,7 @@
+
+# Scheme
+<img src="https://github.com/AMBIENT-6G/dataset-harvesters/blob/main/sSUHFIPTIVA0_875/scheme/harvester.png" width="600">
+
 # Features
 - Cable loss taken into account --> 0.55 dB loss [915 MHz]
 
