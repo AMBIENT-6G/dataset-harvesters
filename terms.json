@@ -17,12 +17,12 @@
     },
     {
       "key": "frequency_mhz",
-      "name": "Frequency (MHz)",
+      "name": "Measured Frequency (MHz)",
       "explanation": "Operating or measured frequency of the input signal, in megahertz."
     },
     {
       "key": "level_dbm",
-      "name": "Level (dBm)",
+      "name": "Input Power (dBm)",
       "explanation": "Input power level at the harvester input, expressed in dBm."
     },
     {
@@ -37,7 +37,7 @@
     },
     {
       "key": "pwr_pw",
-      "name": "Power (pW)",
+      "name": "DC Output Power (pW)",
       "explanation": "DC Power value expressed in picowatts."
     },
     {
