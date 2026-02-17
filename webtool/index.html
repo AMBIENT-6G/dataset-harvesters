@@ -245,6 +245,12 @@
     const plotButton = document.getElementById('plot-button');
     const chartCanvas = document.getElementById('harvester-chart');
 
+    const CHART_FILTER_EXCLUDED_KEYS = new Set([
+      'pwr_pw',
+      'buffer_voltage_mv',
+      'resistance',
+    ]);
+
     const harvesterData = new Map();
     let columnKeys = [];
     let termMetaByKey = {};
@@ -443,7 +449,9 @@
         : HARVESTERS.filter((item) => harvesterData.has(item.name)).map((item) => item.name);
       const xKey = xAxisSelect.value;
       const yKey = yAxisSelect.value;
-      const filterKeys = columnKeys.filter((key) => key !== xKey && key !== yKey);
+      const filterKeys = columnKeys.filter(
+        (key) => key !== xKey && key !== yKey && !CHART_FILTER_EXCLUDED_KEYS.has(key)
+      );
 
       filterKeys.forEach((key) => {
         const itemLabel = termMetaForKey(key);
