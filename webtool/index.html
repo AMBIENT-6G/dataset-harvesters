@@ -96,9 +96,48 @@
       font-size: 14px;
       background: #fff;
     }
-    select[multiple] {
-      min-height: 110px;
-      padding: 6px 8px;
+    .filter-dropdown {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .filter-dropdown summary {
+      padding: 8px 10px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 14px;
+      list-style: none;
+    }
+    .filter-dropdown summary::-webkit-details-marker {
+      display: none;
+    }
+    .filter-dropdown summary::after {
+      content: "v";
+      float: right;
+      color: #6b7785;
+    }
+    .filter-dropdown[open] summary::after {
+      content: "^";
+    }
+    .filter-options {
+      border-top: 1px solid var(--border);
+      padding: 8px 10px;
+      max-height: 170px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .filter-options-empty {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
     }
     .actions {
       display: flex;
@@ -205,11 +244,13 @@
             </div>
           </div>
           <div class="chart-filters">
-            <p class="note">Optional filters for non X/Y columns. Use Ctrl/Cmd+click to select multiple values; each value set is drawn with a different line style.</p>
+            <p class="note">Optional filters for non X/Y columns. Open a dropdown and tick multiple boxes; each value set appears as a separate series.</p>
             <div id="chart-filter-list" class="grid"></div>
           </div>
           <div class="actions" style="margin-top: 12px;">
+            <button type="button" id="clear-filters-button" class="secondary">Clear Filters</button>
             <button type="button" id="plot-button" class="secondary">Plot Chart</button>
+            <button type="button" id="download-chart-button" class="secondary">Download Chart CSV</button>
           </div>
           <p class="note">Chart uses numeric values only. Choose numeric columns for X/Y axes.</p>
         </fieldset>
@@ -242,7 +283,9 @@
     const xAxisSelect = document.getElementById('x-axis');
     const yAxisSelect = document.getElementById('y-axis');
     const chartFilterList = document.getElementById('chart-filter-list');
+    const clearFiltersButton = document.getElementById('clear-filters-button');
     const plotButton = document.getElementById('plot-button');
+    const downloadChartButton = document.getElementById('download-chart-button');
     const chartCanvas = document.getElementById('harvester-chart');
 
     const CHART_FILTER_EXCLUDED_KEYS = new Set([
@@ -250,6 +293,8 @@
       'buffer_voltage_mv',
       'resistance',
     ]);
+    const DEFAULT_X_AXIS_KEY = 'level_dbm';
+    const DEFAULT_Y_AXIS_KEY = 'efficiency';
 
     const harvesterData = new Map();
     let columnKeys = [];
@@ -428,16 +473,41 @@
       }));
     }
 
+    function filterValueLabel(value) {
+      return value === '' ? '(empty)' : value;
+    }
+
+    function selectedDropdownValues(dropdown) {
+      return Array.from(dropdown.querySelectorAll('input[type="checkbox"]:checked')).map((input) => input.value);
+    }
+
+    function updateFilterDropdownSummary(dropdown) {
+      const summary = dropdown.querySelector('summary');
+      if (!summary) {
+        return;
+      }
+      const selected = selectedDropdownValues(dropdown).map((value) => filterValueLabel(value));
+      if (selected.length === 0) {
+        summary.textContent = 'Any';
+        return;
+      }
+      if (selected.length <= 2) {
+        summary.textContent = selected.join(', ');
+        return;
+      }
+      summary.textContent = selected.slice(0, 2).join(', ') + ' +' + (selected.length - 2);
+    }
+
     function renderChartFilters() {
       if (!chartFilterList || columnKeys.length === 0) {
         return;
       }
 
       const previousSelections = new Map();
-      chartFilterList.querySelectorAll('select[data-filter-key]').forEach((select) => {
+      chartFilterList.querySelectorAll('details[data-filter-key]').forEach((dropdown) => {
         previousSelections.set(
-          select.dataset.filterKey,
-          new Set(Array.from(select.selectedOptions).map((option) => option.value))
+          dropdown.dataset.filterKey,
+          new Set(selectedDropdownValues(dropdown))
         );
       });
 
@@ -468,44 +538,82 @@
         }
         field.appendChild(name);
 
-        const select = document.createElement('select');
-        select.dataset.filterKey = key;
-        select.multiple = true;
-        select.size = Math.min(Math.max(values.length, 2), 6);
+        const dropdown = document.createElement('details');
+        dropdown.className = 'filter-dropdown';
+        dropdown.dataset.filterKey = key;
         if (itemLabel.explanation) {
-          select.title = itemLabel.explanation;
+          dropdown.title = itemLabel.explanation;
         }
 
-        values.forEach((value) => {
-          const option = document.createElement('option');
-          option.value = value;
-          option.textContent = value === '' ? '(empty)' : value;
-          select.appendChild(option);
-        });
+        const summary = document.createElement('summary');
+        summary.textContent = 'Any';
+        dropdown.appendChild(summary);
+
+        const options = document.createElement('div');
+        options.className = 'filter-options';
 
         const previousValues = previousSelections.get(key);
-        if (previousValues && previousValues.size) {
-          Array.from(select.options).forEach((option) => {
-            option.selected = previousValues.has(option.value);
+        if (values.length === 0) {
+          const emptyNote = document.createElement('p');
+          emptyNote.className = 'filter-options-empty';
+          emptyNote.textContent = 'No values';
+          options.appendChild(emptyNote);
+        } else {
+          values.forEach((value) => {
+            const optionLabel = document.createElement('label');
+            optionLabel.className = 'filter-option';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = value;
+            if (previousValues && previousValues.has(value)) {
+              checkbox.checked = true;
+            }
+            checkbox.addEventListener('change', () => updateFilterDropdownSummary(dropdown));
+
+            const text = document.createElement('span');
+            text.textContent = filterValueLabel(value);
+
+            optionLabel.appendChild(checkbox);
+            optionLabel.appendChild(text);
+            options.appendChild(optionLabel);
           });
         }
 
-        field.appendChild(select);
+        dropdown.appendChild(options);
+        updateFilterDropdownSummary(dropdown);
+
+        field.appendChild(dropdown);
         chartFilterList.appendChild(field);
       });
     }
 
     function selectedChartFilters() {
       const filters = new Map();
-      chartFilterList.querySelectorAll('select[data-filter-key]').forEach((select) => {
-        const values = new Set(
-          Array.from(select.selectedOptions).map((option) => option.value)
-        );
+      chartFilterList.querySelectorAll('details[data-filter-key]').forEach((dropdown) => {
+        const values = new Set(selectedDropdownValues(dropdown));
         if (values.size > 0) {
-          filters.set(select.dataset.filterKey, values);
+          filters.set(dropdown.dataset.filterKey, values);
         }
       });
       return filters;
+    }
+
+    function clearChartFilters() {
+      chartFilterList.querySelectorAll('details[data-filter-key]').forEach((dropdown) => {
+        dropdown.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+          checkbox.checked = false;
+        });
+        updateFilterDropdownSummary(dropdown);
+      });
+    }
+
+    function preferredAxisIndex(columns, preferredKey, fallbackIndex) {
+      const index = columns.indexOf(preferredKey);
+      if (index >= 0) {
+        return index;
+      }
+      return fallbackIndex;
     }
 
     function rowFilterSignature(row, filters) {
@@ -518,18 +626,6 @@
         parts.push({ key, value });
       }
       return parts;
-    }
-
-    function lineDashPattern(index) {
-      const patterns = [
-        [],
-        [9, 4],
-        [2, 3],
-        [12, 3, 2, 3],
-        [6, 2, 2, 2],
-        [1, 3],
-      ];
-      return patterns[index % patterns.length];
     }
 
     function formatFilterParts(parts) {
@@ -589,6 +685,75 @@
       return lines.join('\n');
     }
 
+    function triggerCsvDownload(csv, filenamePrefix) {
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filenamePrefix + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters) {
+      const series = new Map();
+      const signatureKeys = new Set();
+      const harvesterOrder = new Map(selectedHarvesters.map((name, idx) => [name, idx]));
+
+      selectedHarvesters.forEach((name) => {
+        const rows = harvesterData.get(name) || [];
+        rows.forEach((row) => {
+          const signatureParts = rowFilterSignature(row, chartFilters);
+          if (signatureParts === null) {
+            return;
+          }
+
+          const xVal = Number.parseFloat(row[xKey]);
+          const yVal = Number.parseFloat(row[yKey]);
+          if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) {
+            return;
+          }
+
+          const signatureKey = signatureParts
+            .map((part) => part.key + '\u0000' + part.value)
+            .join('\u0001');
+          signatureKeys.add(signatureKey);
+          const seriesKey = name + '\u0002' + signatureKey;
+          if (!series.has(seriesKey)) {
+            series.set(seriesKey, {
+              harvester: name,
+              signatureKey,
+              signatureParts,
+              points: [],
+            });
+          }
+          series.get(seriesKey).points.push({ x: xVal, y: yVal });
+        });
+      });
+
+      if (series.size === 0) {
+        return null;
+      }
+
+      const sortedSignatureKeys = Array.from(signatureKeys).sort((a, b) => a.localeCompare(b));
+      const signatureIndex = new Map(sortedSignatureKeys.map((key, idx) => [key, idx]));
+      const sortedSeries = Array.from(series.values()).sort((a, b) => {
+        const harvesterDiff = (harvesterOrder.get(a.harvester) ?? 0) - (harvesterOrder.get(b.harvester) ?? 0);
+        if (harvesterDiff !== 0) {
+          return harvesterDiff;
+        }
+        return (signatureIndex.get(a.signatureKey) ?? 0) - (signatureIndex.get(b.signatureKey) ?? 0);
+      });
+
+      sortedSeries.forEach((entry) => {
+        entry.points.sort((a, b) => a.x - b.x);
+      });
+
+      return { sortedSeries, signatureIndex };
+    }
+
     function downloadCsv() {
       clearError();
       const selectedHarvesters = selectedValues(harvesterList);
@@ -609,15 +774,56 @@
         return;
       }
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'harvester-data-' + new Date().toISOString().replace(/[:.]/g, '-') + '.csv';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      triggerCsvDownload(csv, 'harvester-data');
+    }
+
+    function buildChartCsv(sortedSeries, xKey, yKey, activeFilterKeys) {
+      const header = ['harvester', 'series', xKey, yKey, ...activeFilterKeys];
+      const lines = [header.map(csvEscape).join(',')];
+
+      sortedSeries.forEach((entry) => {
+        const suffix = formatFilterParts(entry.signatureParts);
+        const seriesLabel = suffix ? entry.harvester + ' (' + suffix + ')' : entry.harvester;
+        const filterValuesByKey = new Map(
+          entry.signatureParts.map((part) => [part.key, part.value])
+        );
+
+        entry.points.forEach((point) => {
+          const line = [entry.harvester, seriesLabel, point.x, point.y];
+          activeFilterKeys.forEach((key) => {
+            line.push(filterValuesByKey.get(key) ?? '');
+          });
+          lines.push(line.map(csvEscape).join(','));
+        });
+      });
+
+      return lines.join('\n');
+    }
+
+    function downloadChartCsv() {
+      clearError();
+      const selectedHarvesters = selectedValues(harvesterList);
+      if (selectedHarvesters.length === 0) {
+        showError('Select at least one harvester.');
+        return;
+      }
+      if (!xAxisSelect.value || !yAxisSelect.value) {
+        showError('Select both an X axis and Y axis.');
+        return;
+      }
+
+      const xKey = xAxisSelect.value;
+      const yKey = yAxisSelect.value;
+      const chartFilters = selectedChartFilters();
+      const chartData = buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters);
+      if (!chartData) {
+        showError('No numeric chart data available for the selected axes and filters.');
+        return;
+      }
+
+      const activeFilterKeys = Array.from(chartFilters.keys());
+      const chartCsv = buildChartCsv(chartData.sortedSeries, xKey, yKey, activeFilterKeys);
+      triggerCsvDownload(chartCsv, 'harvester-chart-data');
     }
 
     function plotChart() {
@@ -635,40 +841,8 @@
       const xKey = xAxisSelect.value;
       const yKey = yAxisSelect.value;
       const chartFilters = selectedChartFilters();
-      const series = new Map();
-      const signatureKeys = new Set();
-      const harvesterOrder = new Map(selectedHarvesters.map((name, idx) => [name, idx]));
-
-      selectedHarvesters.forEach((name) => {
-        const rows = harvesterData.get(name) || [];
-        rows.forEach((row) => {
-          const signatureParts = rowFilterSignature(row, chartFilters);
-          if (signatureParts === null) {
-            return;
-          }
-          const xVal = Number.parseFloat(row[xKey]);
-          const yVal = Number.parseFloat(row[yKey]);
-          if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) {
-            return;
-          }
-          const signatureKey = signatureParts
-            .map((part) => part.key + '\u0000' + part.value)
-            .join('\u0001');
-          signatureKeys.add(signatureKey);
-          const seriesKey = name + '\u0002' + signatureKey;
-          if (!series.has(seriesKey)) {
-            series.set(seriesKey, {
-              harvester: name,
-              signatureKey,
-              signatureParts,
-              points: [],
-            });
-          }
-          series.get(seriesKey).points.push({ x: xVal, y: yVal });
-        });
-      });
-
-      if (series.size === 0) {
+      const chartData = buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters);
+      if (!chartData) {
         showError('No numeric data available for the selected axes and filters.');
         return;
       }
@@ -677,18 +851,7 @@
       const colorByHarvester = new Map(
         selectedHarvesters.map((name, idx) => [name, getColor(idx)])
       );
-      const sortedSignatureKeys = Array.from(signatureKeys).sort((a, b) => a.localeCompare(b));
-      const signatureIndex = new Map(sortedSignatureKeys.map((key, idx) => [key, idx]));
-      const sortedSeries = Array.from(series.values()).sort((a, b) => {
-        const harvesterDiff = (harvesterOrder.get(a.harvester) ?? 0) - (harvesterOrder.get(b.harvester) ?? 0);
-        if (harvesterDiff !== 0) {
-          return harvesterDiff;
-        }
-        return (signatureIndex.get(a.signatureKey) ?? 0) - (signatureIndex.get(b.signatureKey) ?? 0);
-      });
-
-      sortedSeries.forEach((entry) => {
-        entry.points.sort((a, b) => a.x - b.x);
+      chartData.sortedSeries.forEach((entry) => {
         const color = colorByHarvester.get(entry.harvester) || getColor(0);
         const suffix = formatFilterParts(entry.signatureParts);
         const label = suffix ? entry.harvester + ' (' + suffix + ')' : entry.harvester;
@@ -697,9 +860,8 @@
           data: entry.points,
           borderColor: color,
           backgroundColor: color,
-          borderDash: lineDashPattern(signatureIndex.get(entry.signatureKey) ?? 0),
-          pointRadius: 2,
-          showLine: true,
+          pointRadius: 3,
+          showLine: false,
         });
       });
 
@@ -777,8 +939,14 @@
         labelForItem: columnLabelForItem,
         showInfo: true
       });
-      renderSelect(xAxisSelect, columnListData, 0, { labelForItem: columnLabelForItem });
-      renderSelect(yAxisSelect, columnListData, columnListData.length > 1 ? 1 : 0, { labelForItem: columnLabelForItem });
+      const xAxisDefaultIndex = preferredAxisIndex(columnListData, DEFAULT_X_AXIS_KEY, 0);
+      const yAxisDefaultIndex = preferredAxisIndex(
+        columnListData,
+        DEFAULT_Y_AXIS_KEY,
+        columnListData.length > 1 ? 1 : 0
+      );
+      renderSelect(xAxisSelect, columnListData, xAxisDefaultIndex, { labelForItem: columnLabelForItem });
+      renderSelect(yAxisSelect, columnListData, yAxisDefaultIndex, { labelForItem: columnLabelForItem });
 
       const handleHarvesterChange = () => {
         updateHarvesterToggle();
@@ -797,7 +965,9 @@
     }
 
     downloadButton.addEventListener('click', downloadCsv);
+    clearFiltersButton.addEventListener('click', clearChartFilters);
     plotButton.addEventListener('click', plotChart);
+    downloadChartButton.addEventListener('click', downloadChartCsv);
     async function init() {
       await loadTermMeta();
       await loadData();
