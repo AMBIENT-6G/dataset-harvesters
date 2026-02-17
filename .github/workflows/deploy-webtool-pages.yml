@@ -1,0 +1,71 @@
+name: Deploy Webtool Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - terms.json
+      - webtool/**
+      - .github/workflows/deploy-webtool-pages.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - terms.json
+      - webtool/**
+      - .github/workflows/deploy-webtool-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build static site artifact
+        run: |
+          set -euo pipefail
+          python3 -m json.tool terms.json > /dev/null
+          mkdir -p site/webtool
+          cp -R webtool/. site/webtool/
+          cp terms.json site/terms.json
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta http-equiv="refresh" content="0; url=./webtool/">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Dataset Harvesters Webtool</title>
+          </head>
+          <body>
+            <p>Redirecting to the <a href="./webtool/">webtool</a>...</p>
+          </body>
+          </html>
+          HTML
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

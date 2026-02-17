@@ -64,6 +64,25 @@
       gap: 8px;
       font-size: 14px;
     }
+    .term-name {
+      border-bottom: 1px dotted #9fb0c1;
+      cursor: help;
+    }
+    .term-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 1px solid #aebdcb;
+      background: #eef3f8;
+      color: #1f4f7a;
+      font-size: 11px;
+      line-height: 1;
+      cursor: help;
+      user-select: none;
+    }
     .field {
       display: flex;
       flex-direction: column;
@@ -212,6 +231,7 @@
     const chartCanvas = document.getElementById('harvester-chart');
 
     const harvesterData = new Map();
+    let termMetaByKey = {};
     let chartInstance = null;
 
     function showError(message) {
@@ -224,32 +244,135 @@
       errorBox.classList.add('hidden');
     }
 
-    function renderCheckboxes(container, items, name) {
+    function fallbackLabelFromKey(key) {
+      return key
+        .split('_')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+    }
+
+    function termMetaForKey(key) {
+      if (termMetaByKey[key]) {
+        return termMetaByKey[key];
+      }
+      return {
+        name: fallbackLabelFromKey(key),
+        explanation: ''
+      };
+    }
+
+    function normalizeTermMeta(payload) {
+      const normalized = {};
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return normalized;
+      }
+
+      if (Array.isArray(payload.terms)) {
+        payload.terms.forEach((term) => {
+          if (!term || typeof term !== 'object') {
+            return;
+          }
+          const key = typeof term.key === 'string' ? term.key.trim() : '';
+          const name = typeof term.name === 'string' ? term.name.trim() : '';
+          const explanation = typeof term.explanation === 'string' ? term.explanation.trim() : '';
+          if (!key || !name || !explanation) {
+            return;
+          }
+          normalized[key] = { name, explanation };
+        });
+        return normalized;
+      }
+
+      Object.entries(payload).forEach(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return;
+        }
+        const name = typeof value.name === 'string' ? value.name.trim() : '';
+        const explanation = typeof value.explanation === 'string' ? value.explanation.trim() : '';
+        if (!name || !explanation) {
+          return;
+        }
+        normalized[key] = { name, explanation };
+      });
+      return normalized;
+    }
+
+    async function loadTermMeta() {
+      try {
+        const response = await fetch('../terms.json', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status);
+        }
+        const payload = await response.json();
+        const normalized = normalizeTermMeta(payload);
+        if (Object.keys(normalized).length === 0) {
+          throw new Error('Unexpected glossary format');
+        }
+        termMetaByKey = normalized;
+      } catch (err) {
+        termMetaByKey = {};
+        console.warn('Failed to load glossary metadata:', err);
+      }
+    }
+
+    function renderCheckboxes(container, items, name, options = {}) {
+      const labelForItem = options.labelForItem || ((item) => ({ name: item, explanation: '' }));
+      const showInfo = options.showInfo || false;
       container.innerHTML = '';
       items.forEach((item) => {
+        const itemLabel = labelForItem(item);
         const label = document.createElement('label');
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.name = name;
         input.value = item;
         input.checked = true;
+        if (itemLabel.explanation) {
+          label.title = itemLabel.explanation;
+        }
         label.appendChild(input);
-        label.appendChild(document.createTextNode(item));
+        const text = document.createElement('span');
+        text.textContent = itemLabel.name;
+        if (itemLabel.explanation) {
+          text.className = 'term-name';
+          text.title = itemLabel.explanation;
+        }
+        label.appendChild(text);
+        if (showInfo && itemLabel.explanation) {
+          const info = document.createElement('span');
+          info.className = 'term-info';
+          info.textContent = 'i';
+          info.title = itemLabel.explanation;
+          info.setAttribute('aria-label', itemLabel.explanation);
+          label.appendChild(info);
+        }
         container.appendChild(label);
       });
     }
 
-    function renderSelect(select, items, fallbackIndex) {
+    function setSelectTitle(select, labelForItem) {
+      const itemLabel = labelForItem(select.value);
+      select.title = itemLabel.explanation || '';
+    }
+
+    function renderSelect(select, items, fallbackIndex, options = {}) {
+      const labelForItem = options.labelForItem || ((item) => ({ name: item, explanation: '' }));
       select.innerHTML = '';
       items.forEach((item, idx) => {
+        const itemLabel = labelForItem(item);
         const option = document.createElement('option');
         option.value = item;
-        option.textContent = item;
+        option.textContent = itemLabel.name;
+        if (itemLabel.explanation) {
+          option.title = itemLabel.explanation;
+        }
         select.appendChild(option);
         if (idx === fallbackIndex) {
           select.value = item;
         }
       });
+      setSelectTitle(select, labelForItem);
     }
 
     function selectedValues(container) {
@@ -402,10 +525,10 @@
           },
           scales: {
             x: {
-              title: { display: true, text: xKey },
+              title: { display: true, text: termMetaForKey(xKey).name },
             },
             y: {
-              title: { display: true, text: yKey },
+              title: { display: true, text: termMetaForKey(yKey).name },
             },
           },
         },
@@ -453,19 +576,30 @@
 
       const harvesterNames = HARVESTERS.filter((item) => harvesterData.has(item.name)).map((item) => item.name);
       const columnListData = Array.from(columns);
+      const columnLabelForItem = (item) => termMetaForKey(item);
 
       renderCheckboxes(harvesterList, harvesterNames, 'harvesters');
-      renderCheckboxes(columnList, columnListData, 'columns');
-      renderSelect(xAxisSelect, columnListData, 0);
-      renderSelect(yAxisSelect, columnListData, columnListData.length > 1 ? 1 : 0);
+      renderCheckboxes(columnList, columnListData, 'columns', {
+        labelForItem: columnLabelForItem,
+        showInfo: true
+      });
+      renderSelect(xAxisSelect, columnListData, 0, { labelForItem: columnLabelForItem });
+      renderSelect(yAxisSelect, columnListData, columnListData.length > 1 ? 1 : 0, { labelForItem: columnLabelForItem });
 
       updateHarvesterToggle();
       harvesterList.addEventListener('change', updateHarvesterToggle);
+      xAxisSelect.addEventListener('change', () => setSelectTitle(xAxisSelect, columnLabelForItem));
+      yAxisSelect.addEventListener('change', () => setSelectTitle(yAxisSelect, columnLabelForItem));
     }
 
     downloadButton.addEventListener('click', downloadCsv);
     plotButton.addEventListener('click', plotChart);
-    loadData();
+    async function init() {
+      await loadTermMeta();
+      await loadData();
+    }
+
+    init();
   </script>
 </body>
 </html>
