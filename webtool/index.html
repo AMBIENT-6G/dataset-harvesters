@@ -648,8 +648,23 @@
     }
 
     function getColor(index) {
-      const palette = ['#1f4f7a', '#b4573c', '#5b7c32', '#7a4f8b', '#d48c2d', '#2c6d7a'];
-      return palette[index % palette.length];
+      const palette = [
+        '#1f4f7a',
+        '#b4573c',
+        '#5b7c32',
+        '#7a4f8b',
+        '#d48c2d',
+        '#2c6d7a',
+        '#b33f62',
+        '#3f7f7f',
+        '#6e5a1f',
+        '#3e4f8f',
+      ];
+      if (index < palette.length) {
+        return palette[index];
+      }
+      const hue = Math.round((index * 137.508) % 360);
+      return 'hsl(' + hue + ', 65%, 42%)';
     }
 
     function csvEscape(value) {
@@ -848,11 +863,8 @@
       }
 
       const datasets = [];
-      const colorByHarvester = new Map(
-        selectedHarvesters.map((name, idx) => [name, getColor(idx)])
-      );
-      chartData.sortedSeries.forEach((entry) => {
-        const color = colorByHarvester.get(entry.harvester) || getColor(0);
+      chartData.sortedSeries.forEach((entry, idx) => {
+        const color = getColor(idx);
         const suffix = formatFilterParts(entry.signatureParts);
         const label = suffix ? entry.harvester + ' (' + suffix + ')' : entry.harvester;
         datasets.push({
