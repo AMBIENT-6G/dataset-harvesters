@@ -12,8 +12,8 @@
     },
     {
       "key": "source",
-      "name": "Harvester Source",
-      "explanation": "Type used at the input of the harvester."
+      "name": "Data Source",
+      "explanation": "Source used to obtain the data: datasheet or measurements."
     },
     {
       "key": "frequency_mhz",
