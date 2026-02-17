@@ -11,5 +11,5 @@
 - Cable loss taken into account --> 0.55 dB loss [915 MHz]
 
 # Restrictions
-- Output power restricted to 0 dBm (EP V1.2 (2e design))
-- Target voltage accuracy 50 mV --> could be better?
+- The RF signal generator output power is currently limited to 0 dBm due to the limitations of the energy profiler. (EP V1.2 (2e design))
+- The target voltage accuracy is currently set to ±50 mV. This accuracy could be improved in a future energy profiler update once the dynamic range of the programmable load is increased.
