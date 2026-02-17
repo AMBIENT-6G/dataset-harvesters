@@ -1,0 +1,36 @@
+terms:
+  - key: tuning_frequency_mhz
+    name: Tuning Frequency (MHz)
+    explanation: Frequency used to tune the harvester input, in megahertz.
+
+  - key: target_voltage_mv
+    name: Target Voltage (mV)
+    explanation: Desired output or operating voltage target, in millivolts.
+
+  - key: source
+    name: Harvester Source
+    explanation: Type used at the input of the harvester.
+
+  - key: frequency_mhz
+    name: Frequency (MHz)
+    explanation: Operating or measured frequency of the input signal, in megahertz.
+
+  - key: level_dbm
+    name: Level (dBm)
+    explanation: Input power level at the harvester input, expressed in dBm.
+
+  - key: buffer_voltage_mv
+    name: Buffer Voltage (mV)
+    explanation: Voltage measured at the buffer node, in millivolts.
+
+  - key: resistance
+    name: Resistance
+    explanation: Load or equivalent resistance value in ohms.
+
+  - key: pwr_pw
+    name: Power (pW)
+    explanation: DC Power value expressed in picowatts.
+
+  - key: efficiency
+    name: Efficiency
+    explanation: Energy conversion efficiency of the harvester setup.
