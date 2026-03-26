@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-db_path = "data.db"
+db_path = "032026_data.db"
 conn = sqlite3.connect(db_path)
 
 f_min = 910
@@ -12,7 +12,7 @@ f_max = 920
 # v_min = 1000
 # v_max = 1100
 
-pwr = -10
+pwr = -5
 
 # Stel marge in (bijvoorbeeld ±50 mV)
 target_voltage_marge = 0.05
@@ -30,8 +30,8 @@ plt.figure(figsize=(10,6))
 
 for table in tables:
 
-    if table == "P2110B":
-        continue
+    # if table == "P2110B":
+    #     continue
 
     print(table)
     try:

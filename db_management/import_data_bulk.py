@@ -9,10 +9,11 @@ import glob
 #----------------------------------------------------#
 #                      Settings                      #
 #----------------------------------------------------#
+NAME_DATABASE = "032026_data.db"
 REPLACE = True
 #-------------------sSUHFIPTIVA0---------------------#
 # data_name = "sSUHFIPTIVA0_875_measured_t*.csv"
-data_name = "sSUHFIPTIVA0_2500_measured_t*.csv"
+# data_name = "sSUHFIPTIVA0_2500_measured_t*.csv"
 #---------------------AEM40940-----------------------#
 # data_name = "AEM40940_867_datasheet_t0.csv"
 # data_name = "AEM40940_921_datasheet_t0.csv"
@@ -22,9 +23,11 @@ data_name = "sSUHFIPTIVA0_2500_measured_t*.csv"
 #----------------------------------------------------#
 #--------------------P2110B--------------------------#
 # data_name = "P2110B_915_datasheet_t0.csv"
+data_name = "P2110B_915_measured_t*.csv"
 #----------------------------------------------------#
 #-------------------SMS7630-005LF--------------------# (LOW POWER DIODE)
-#data_name = "SMS7630-005LF_915_measured_t*.csv"
+# data_name = "SMS7630005LF_915_measured_t*.csv"
+# data_name = "SMS7630005LF_2450_measured_t*.csv"
 #----------------------------------------------------#
 #-------------------SMS7621-005LF--------------------# (HIGH POWER DIODE)
 # data_name = "SMS7621005LF_915_measured_t*.csv"
@@ -58,7 +61,7 @@ for f in files:
     data_source = next(p for p in stem_parts if p.isalpha())
 
     # 1. Verbinding maken (bestand wordt automatisch aangemaakt)
-    conn = sqlite3.connect(f"{parent_path}/data.db")
+    conn = sqlite3.connect(f"{parent_path}/{NAME_DATABASE}")
     cur = conn.cursor()
 
     # 2. Tabel aanmaken (eenmalig)

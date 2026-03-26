@@ -8,6 +8,7 @@ from helper import *
 #----------------------------------------------------#
 #                      Settings                      #
 #----------------------------------------------------#
+NAME_DATABASE = "data.db"
 REPLACE = True
 #-------------------sSUHFIPTIVA0---------------------#
 # data_name = "sSUHFIPTIVA0_900_measured_t1600.csv"
@@ -24,6 +25,9 @@ REPLACE = True
 #-------------------SMS7630-005LF--------------------#
 data_name = "SMS7630005LF_915_measured_t1000.csv"
 # data_name = "SMS7630005LF_915_measured_t1800.csv"
+#----------------------------------------------------#
+#----------------------P2110B------------------------#
+data_name = "P2110B_915_measured_t1000.csv"
 #----------------------------------------------------#
 
 
@@ -46,7 +50,7 @@ parent_path = os.path.dirname(current_dir)
 
 
 # 1. Verbinding maken (bestand wordt automatisch aangemaakt)
-conn = sqlite3.connect(f"{parent_path}/data.db")
+conn = sqlite3.connect(f"{parent_path}/{NAME_DATABASE}")
 cur = conn.cursor()
 
 # 2. Tabel aanmaken (eenmalig)

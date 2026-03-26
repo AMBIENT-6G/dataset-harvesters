@@ -1,9 +1,15 @@
-# Restrictions
+## Design
+🚧 Under construction 🚧
+<!-- <img src="https://github.com/AMBIENT-6G/dataset-harvesters/blob/main/sSUHFIPTIVA0_875/scheme/nxp-harvester-board-875mhz.jpg" width="600"> -->
 
-- Output power restricted to 0 dBm (EP V1.2 (2e design))
-- Target voltage accuracy 50 mV --> could be better?
+## Measurement Conditions
+### Features
+- Cable loss taken into account --> 1.06 dB loss [2400 MHz]
+- Three stage digital potentiometer used (EP V1.3 (3e design))
 
-# Features and remarks
+### Restrictions
+- The target voltage accuracy is currently set to ±50 mV. This accuracy could be improved in a future energy profiler update once the dynamic range of the programmable load is increased.
 
-- WRONG Cable loss taken into account --> 0.55 dB loss [915 MHz]
-- Cable loss taken into account --> 1.06 dB loss [2450 MHz]
+## Scheme
+🚧 Under construction 🚧
+<!-- <img src="https://github.com/AMBIENT-6G/dataset-harvesters/blob/main/sSUHFIPTIVA0_875/scheme/harvester.png" width="600"> -->

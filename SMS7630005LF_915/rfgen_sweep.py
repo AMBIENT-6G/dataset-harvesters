@@ -20,15 +20,27 @@ filename = os.path.basename(current_dir)
 
 print(filename)
 
-resource_string_1 = 'TCPIP::10.128.48.6::INSTR'  # Standard LAN connection (also called VXI-11)
+resource_string_1 = 'TCPIP::10.128.48.16::INSTR'  # Standard LAN connection (also called VXI-11)
 resource_string_2 = 'TCPIP::192.168.2.101::hislip0'  # Hi-Speed LAN connection - see 1MA208
 resource_string_3 = 'GPIB::20::INSTR'  # GPIB Connection
 resource_string_4 = 'USB::0x0AAD::0x0119::022019943::INSTR'  # USB-TMC (Test and Measurement Class)
 resource_string_5 = 'RSNRP::0x0095::104015::INSTR'  # R&S Powersensor NRP-Z86
 instr = RsInstrument(resource_string_1, True, False)
 
-FREQ = 917e6
-LVL = -20
+################################################
+start_lvl = -25
+stop_lvl = 10
+
+START_VOLTAGE = 250
+STOP_VOLTAGE = 2000
+VOLTAGE_STEP = 250
+
+start_freq = 850e6
+stop_freq = 950e6
+FREQ_STEP = 12.5e6
+
+Cable_loss = 0.55
+################################################
 
 #ser = serial.Serial('COM4', 115200, timeout=1)  # Change 'COM1' to your serial port
 
@@ -81,18 +93,13 @@ def append_to_csv(csv_file_path, data):
         writer.writerow(data)
 
 
-start_lvl = -20
-stop_lvl = 0
-
 lvl_buffer = np.linspace(start_lvl, stop_lvl, (stop_lvl-start_lvl)*2 + 1)
 # lvl_buffer = np.linspace(start_lvl, stop_lvl, 5)
 
 # frequency = FREQ
 
-start_freq = 800e6
-stop_freq = 950e6
 
-freq_buffer = np.linspace(start_freq, stop_freq, int((stop_freq-start_freq)/12.5e6) + 1)
+freq_buffer = np.linspace(start_freq, stop_freq, int((stop_freq-start_freq)/FREQ_STEP) + 1)
 
 output(1)
 
@@ -102,7 +109,7 @@ time.sleep(1)
 
 output(1)
 
-tvbuffer = np.linspace(750,2000,6)
+tvbuffer = np.linspace(START_VOLTAGE,STOP_VOLTAGE,int((STOP_VOLTAGE-START_VOLTAGE)/VOLTAGE_STEP) + 1)
 # print(tvbuffer)
 
 # target_voltage = 1000
@@ -119,10 +126,15 @@ for target_voltage in tvbuffer:
     # Sweep
     for freq in freq_buffer:
 
+        change_freq_lvl(freq, start_lvl+Cable_loss)
+        
+        # print("Wait 5 seconds before starting the new measurement!")
+        # time.sleep(5)
+
         for lvl in lvl_buffer:
 
             #   Change freq and lvl SMC100A
-            change_freq_lvl(freq, lvl)
+            change_freq_lvl(freq, lvl+Cable_loss)
 
             #   Print
             # print(f"Level: {lvl} - Frequency: {freq}")
@@ -134,6 +146,12 @@ for target_voltage in tvbuffer:
             vals = get_ep_data()
 
             while vals == None:
+                print("Try again ... ")
+                time.sleep(1)
+                vals = get_ep_data()
+
+            # As long as output power is higher then input power
+            while vals['pwr_pw']/1e12 > (10**(lvl/10)/1e3):
                 print("Try again ... ")
                 time.sleep(1)
                 vals = get_ep_data()
