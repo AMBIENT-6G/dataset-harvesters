@@ -4,21 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-
 def calculate_response_time(harvester, f_min, f_max, input_pwr_dbm, C, V_charge_target):
 
     db_path = "032026_data.db"
     conn = sqlite3.connect(db_path) 
-
-    # f_min = 910
-    # f_max = 920
-    # # f_min = 2450
-    # # f_max = 2460
-
-    # # v_min = 1000
-    # # v_max = 1100
-
-    # pwr = -10
 
     # Stel marge in (bijvoorbeeld ±50 mV)
     target_voltage_marge = 0.05
@@ -29,24 +18,11 @@ def calculate_response_time(harvester, f_min, f_max, input_pwr_dbm, C, V_charge_
         WHERE type='table'
     """, conn)["name"].tolist()
 
-    dfs = []
-
     volt = None
     power = None
 
-    # plt.figure(figsize=(10,6))
-
-    # print(tables)
-
     for table in tables:
-
-        # if table == "P2110B":
-        #     continue
-
-        # if table == "sSUHFIPTIVA0":
         if table == harvester:
-
-            # print(table)
             try:
                 df = pd.read_sql(f"""
                     SELECT frequency_mhz, level_dbm, efficiency, source, buffer_voltage_mv, tuning_frequency_mhz, target_voltage_mv, pwr_pw
@@ -54,17 +30,12 @@ def calculate_response_time(harvester, f_min, f_max, input_pwr_dbm, C, V_charge_
                     WHERE frequency_mhz BETWEEN ? AND ?
                 """, conn, params=(f_min, f_max))
 
-                df["harvester"] = table  # handig om te weten uit welke tabel het komt
-                # dfs.append(df)
+                df["harvester"] = table
 
                 unique_frequencies = sorted(df["frequency_mhz"].unique())
 
-
-                # print(unique_frequencies)
-
                 for freq in unique_frequencies:
 
-                    # print(freq)
 
                     df_f = df.loc[
                         (df["frequency_mhz"] == freq) &
@@ -96,6 +67,11 @@ def calculate_response_time(harvester, f_min, f_max, input_pwr_dbm, C, V_charge_
                 print(f"⚠️ Skipping table {table}: {e}")
 
     conn.close()
+
+    # Add zero
+    volt = [0] + (df_plot["buffer_voltage_mv"]/1e3).tolist()
+    power = [0] + (df_plot["pwr_pw"]/1e6).tolist()
+
 
     import math
 
@@ -156,7 +132,7 @@ def calculate_response_time(harvester, f_min, f_max, input_pwr_dbm, C, V_charge_
 
 
     dt = 0.1
-    t_max = 60*60
+    t_max = 60*60*10
 
 
     V = 0.05
@@ -210,13 +186,13 @@ import matplotlib.pyplot as plt
 harvesters = ['sSUHFIPTIVA0', 'SMS7630005LF', 'SMS7621005LF']
 power_levels = [-15, -10, -5, 0]
 power_levels = np.arange(-15, 0 + 0.1, 2.5)
-v_charge_target = 0.5
+v_charge_target = 2
 C = 10e-3
 
-# freq_min = 910
-# freq_max = 913
-freq_min = 2450
-freq_max = 2455
+freq_min = 910
+freq_max = 913
+# freq_min = 2450
+# freq_max = 2455
 
 # Data verzamelen
 results = {h: [] for h in harvesters}
@@ -225,7 +201,7 @@ for harvester in harvesters:
     for input_pwr_dbm in power_levels:
         x, y = calculate_response_time(harvester, freq_min, freq_max, input_pwr_dbm, C, v_charge_target)
 
-        if y[-1] > 3500:
+        if y[-1] > 35000:
             results[harvester].append(0)
         else:
             results[harvester].append(y[-1])

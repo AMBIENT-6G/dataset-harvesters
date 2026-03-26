@@ -30,7 +30,7 @@ for table in tables:
     print(table)
     try:
         df = pd.read_sql(f"""
-            SELECT frequency_mhz, level_dbm, efficiency, source, buffer_voltage_mv, tuning_frequency_mhz, target_voltage_mv
+            SELECT frequency_mhz, level_dbm, efficiency, source, buffer_voltage_mv, tuning_frequency_mhz, target_voltage_mv, pwr_pw
             FROM "{table}"
             WHERE frequency_mhz BETWEEN ? AND ?
         """, conn, params=(f_min, f_max))
@@ -86,7 +86,7 @@ for table in tables:
                 
                 plt.plot(
                     df_plot["level_dbm"],
-                    df_plot["efficiency"],
+                    df_plot["pwr_pw"]/1e6,
                     marker="o",
                     linestyle="-",
                     label=f"{harvester}({round(tf_mhz)}), {round(freq,1)} MHz, {bv} V, t{round(volt)}, {source}"
@@ -97,14 +97,13 @@ for table in tables:
 
 conn.close()
 
-
+plt.yscale("log")
 plt.xlabel("Input power (dBm)")
-plt.ylabel("Efficiency (%)")
+plt.ylabel("Output power (uW)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
 # plt.show()
-
 
 
 import os
