@@ -184,13 +184,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 harvesters = ['sSUHFIPTIVA0', 'SMS7630005LF', 'SMS7621005LF']
-power_levels = [-15, -10, -5, 0]
 power_levels = np.arange(-15, 0 + 0.1, 2.5)
 v_charge_target = 2
 C = 10e-3
 
-freq_min = 910
-freq_max = 913
+freq = 912.5
+freq_min = freq-1
+freq_max = freq+1
 # freq_min = 2450
 # freq_max = 2455
 
@@ -248,6 +248,18 @@ plt.ylabel("Charge Time (s)")
 plt.yscale("log")
 plt.title(f"Charge Time for {C}F and target voltage {v_charge_target}V")
 plt.legend()
+plt.ylim(bottom=1e1) 
 plt.grid(axis='y')
 
-plt.show()
+# plt.show()
+
+import os
+
+current_file_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(current_file_path)
+parent_path = os.path.dirname(current_dir)
+filename = os.path.splitext(os.path.basename(current_file_path))[0]
+
+import matplot2tikz
+
+matplot2tikz.save(f"{current_dir}/plots/{filename}-{input_pwr_dbm}-{v_charge_target}-{C}.tex")
