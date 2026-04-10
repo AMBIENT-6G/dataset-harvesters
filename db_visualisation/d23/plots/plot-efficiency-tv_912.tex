@@ -1,0 +1,218 @@
+% This file was created with matplot2tikz v0.5.4.
+\begin{tikzpicture}
+
+\definecolor{crimson2143940}{RGB}{214,39,40}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darkorange25512714}{RGB}{255,127,14}
+\definecolor{forestgreen4416044}{RGB}{44,160,44}
+\definecolor{lightgray204}{RGB}{204,204,204}
+\definecolor{steelblue31119180}{RGB}{31,119,180}
+
+\begin{axis}[
+legend cell align={left},
+legend style={
+  fill opacity=0.8,
+  draw opacity=1,
+  text opacity=1,
+  at={(0.97,0.03)},
+  anchor=south east,
+  draw=lightgray204
+},
+tick align=outside,
+tick pos=left,
+x grid style={darkgray176},
+xlabel={Input power (dBm)},
+xmajorgrids,
+xmin=-21.5, xmax=11.5,
+xtick style={color=black},
+y grid style={darkgray176},
+ylabel={Efficiency (\%)},
+ymajorgrids,
+ymin=-2.2465, ymax=57.5165,
+ytick style={color=black}
+]
+\addplot [semithick, steelblue31119180, mark=*, mark size=3, mark options={solid}]
+table {%
+-20 9.28
+-19.5 10.85
+-19 13.47
+-18.5 15.71
+-18 17.93
+-17.5 19.91
+-17 21.59
+-16.5 23
+-16 24.15
+-15.5 25.05
+-15 25.97
+-14.5 26.18
+-14 27.02
+-13.5 28.2
+-13 28.26
+-12.5 28.08
+-12 27.9
+-11.5 27.47
+-11 27.07
+-10.5 26.52
+-10 25.91
+-9.5 25.27
+-9 24.48
+-8.5 23.82
+-8 22.97
+-7.5 22.29
+-7 21.44
+-6.5 20.74
+-6 19.88
+-5.5 19.18
+-5 18.15
+-4.5 17.55
+-4 16.8
+-3.5 16.04
+-3 15.26
+-2.5 14.67
+-2 13.76
+-1.5 13.12
+-1 12.44
+-0.5 11.73
+0 11.03
+};
+\addlegendentry{sSUHFIPTIVA0(875), 912.5 MHz, 1.03 V, t1000, measured}
+\addplot [semithick, darkorange25512714, mark=*, mark size=3, mark options={solid}]
+table {%
+-6.5 0.47
+-6 4.84
+-5.5 9.28
+-5 14.59
+-4.5 18.86
+-4 21.45
+-3.5 23.94
+-3 25.6
+-2.5 27.23
+-2 28.46
+-1.5 29.7
+-1 31.8
+-0.5 34.93
+0 38.53
+0.5 40.77
+1 43.43
+1.5 45.51
+2 47.08
+2.5 48
+3 48.5
+3.5 48.69
+4 48.2
+4.5 51.6
+5 51.58
+5.5 50.54
+6 48.95
+6.5 48.22
+7 47.51
+7.5 46.43
+8 44.93
+8.5 43.14
+9 41
+9.5 42.31
+10 39.52
+};
+\addlegendentry{P2110B(915), 912.5 MHz, 1.02 V, t1000, measured}
+\addplot [semithick, forestgreen4416044, mark=*, mark size=3, mark options={solid}]
+table {%
+-14 2.57
+-13.5 3.16
+-13 11.48
+-12.5 21.1
+-12 24.64
+-11.5 29.57
+-11 34.12
+-10.5 37.84
+-10 40.98
+-9.5 43.26
+-9 45.03
+-8.5 46.44
+-8 47.2
+-7.5 47.56
+-7 47.6
+-6.5 47.4
+-6 47.16
+-5.5 46.68
+-5 45.98
+-4.5 44.96
+-4 44.52
+-3.5 43.39
+-3 42.13
+-2.5 40.93
+-2 39.46
+-1.5 38.11
+-1 36.92
+-0.5 35.7
+0 34.45
+0.5 34.35
+1 32.87
+1.5 31.45
+2 30.03
+2.5 28.87
+3 27.61
+3.5 26.71
+4 25.15
+4.5 22.15
+5 21.35
+5.5 20.18
+6 19.13
+6.5 18.41
+7 17.53
+7.5 16.7
+8 15.91
+8.5 15.04
+9 14.29
+9.5 13.42
+10 13
+};
+\addlegendentry{SMS7630005LF(915), 912.5 MHz, 1.04 V, t1000, measured}
+\addplot [semithick, crimson2143940, mark=*, mark size=3, mark options={solid}]
+table {%
+-10.5 1.11
+-10 1.13
+-9.5 3.39
+-9 8.16
+-8.5 14.07
+-8 19.86
+-7.5 26.5
+-7 32.28
+-6.5 37.43
+-6 42.25
+-5.5 45.57
+-5 48.66
+-4.5 50.88
+-4 52.04
+-3.5 53.37
+-3 54.25
+-2.5 54.64
+-2 54.8
+-1.5 54.53
+-1 54.06
+-0.5 53.58
+0 52.89
+0.5 52.27
+1 51.56
+1.5 50.47
+2 49.19
+2.5 47.81
+3 46.35
+3.5 45.46
+4 43.39
+4.5 39.97
+5 38.45
+5.5 36.51
+6 34.6
+6.5 33.72
+7 32.23
+7.5 31.1
+8 28.54
+8.5 27.36
+9 25.94
+9.5 25.05
+10 25.29
+};
+\addlegendentry{SMS7621005LF(915), 912.5 MHz, 1.03 V, t1000, measured}
+\end{axis}
+
+\end{tikzpicture}
