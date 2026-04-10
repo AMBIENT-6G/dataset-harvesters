@@ -1,6 +1,116 @@
 [
     {
         "buffer_voltage_mv": 2600.0,
+        "efficiency": 6.49,
+        "frequency_mhz": 867.0,
+        "level_dbm": -18.02,
+        "pwr_pw": 1023870.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 22.87,
+        "frequency_mhz": 867.0,
+        "level_dbm": -15.0,
+        "pwr_pw": 7232129.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 29.79,
+        "frequency_mhz": 867.0,
+        "level_dbm": -12.02,
+        "pwr_pw": 18709859.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 29.67,
+        "frequency_mhz": 867.0,
+        "level_dbm": -9.04,
+        "pwr_pw": 37009869.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 27.69,
+        "frequency_mhz": 867.0,
+        "level_dbm": -6.02,
+        "pwr_pw": 69234563.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 24.47,
+        "frequency_mhz": 867.0,
+        "level_dbm": -3.0,
+        "pwr_pw": 122640516.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 19.73,
+        "frequency_mhz": 867.0,
+        "level_dbm": -0.02,
+        "pwr_pw": 196393489.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 16.97,
+        "frequency_mhz": 867.0,
+        "level_dbm": 3.0,
+        "pwr_pw": 338596015.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 13.67,
+        "frequency_mhz": 867.0,
+        "level_dbm": 5.98,
+        "pwr_pw": 541712073.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
+        "efficiency": 10.82,
+        "frequency_mhz": 867.0,
+        "level_dbm": 8.96,
+        "pwr_pw": 851583544.0,
+        "resistance": 0.0,
+        "source": "datasheet",
+        "target_voltage_mv": 0.0,
+        "tuning_frequency_mhz": 867.0
+    },
+    {
+        "buffer_voltage_mv": 2600.0,
         "efficiency": 4.56,
         "frequency_mhz": 921.0,
         "level_dbm": -20.02,
@@ -119,116 +229,6 @@
         "source": "datasheet",
         "target_voltage_mv": 0.0,
         "tuning_frequency_mhz": 921.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 6.49,
-        "frequency_mhz": 867.0,
-        "level_dbm": -18.02,
-        "pwr_pw": 1023870.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 22.87,
-        "frequency_mhz": 867.0,
-        "level_dbm": -15.0,
-        "pwr_pw": 7232129.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 29.79,
-        "frequency_mhz": 867.0,
-        "level_dbm": -12.02,
-        "pwr_pw": 18709859.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 29.67,
-        "frequency_mhz": 867.0,
-        "level_dbm": -9.04,
-        "pwr_pw": 37009869.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 27.69,
-        "frequency_mhz": 867.0,
-        "level_dbm": -6.02,
-        "pwr_pw": 69234563.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 24.47,
-        "frequency_mhz": 867.0,
-        "level_dbm": -3.0,
-        "pwr_pw": 122640516.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 19.73,
-        "frequency_mhz": 867.0,
-        "level_dbm": -0.02,
-        "pwr_pw": 196393489.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 16.97,
-        "frequency_mhz": 867.0,
-        "level_dbm": 3.0,
-        "pwr_pw": 338596015.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 13.67,
-        "frequency_mhz": 867.0,
-        "level_dbm": 5.98,
-        "pwr_pw": 541712073.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
-    },
-    {
-        "buffer_voltage_mv": 2600.0,
-        "efficiency": 10.82,
-        "frequency_mhz": 867.0,
-        "level_dbm": 8.96,
-        "pwr_pw": 851583544.0,
-        "resistance": 0.0,
-        "source": "datasheet",
-        "target_voltage_mv": 0.0,
-        "tuning_frequency_mhz": 867.0
     },
     {
         "buffer_voltage_mv": 2600.0,

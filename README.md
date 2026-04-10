@@ -16,3 +16,13 @@ This repository presents the evaluation and data collection of multiple energy h
 - Webtool path on Pages: `https://ambient-6g.github.io/dataset-harvesters/webtool/`
 - Static app source: `webtool/`
 - Term glossary source of truth: `terms.json`
+
+### Generate `json-export` from SQLite
+
+1. Open `data.db` (or `032026_data.db`) in **[DB Browser for SQLite](https://sqlitebrowser.org/)**.
+2. Export each harvester table as a JSON file.
+3. Save the files in `webtool/json-export/` using these exact names:
+   `AEM40940.json`, `P1110B.json`, `P2110B.json`, `SMS7621005LF.json`,
+   `SMS7630005LF.json`, `sSUHFIPTIVA0.json`.
+4. Validate JSON locally (optional): `python3 -m json.tool webtool/json-export/<file>.json > /dev/null`
+5. Commit and push your changes. A push to `main` with changes in `webtool/**` will trigger the Pages workflow and publish the updated data.
