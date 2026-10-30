@@ -348,7 +348,7 @@
             </div>
           </div>
           <p class="note" style="margin-top: 12px;">Fits Pdc(V) = a·V² + b·V + c in watts by minimizing squared relative power error on the recorded points. All three coefficients are fitted freely; zero-power points are excluded from fitting. Charge time sums C·(Vᵢ₊₁² − Vᵢ²)/(2·Pdc(Vmid)) over 1,000 voltage intervals, using the integration method in Section III-A of the supplied paper. Defaults: 10 mF, 0.05 V to 1 V.</p>
-          <p class="note">Datasheet values at a single output voltage use a constant-power approximation: t = C·(V₁² − V₀²)/(2·Pdc). It assumes the listed Pdc remains constant during charging, from 0 V up to the datasheet reference voltage. Voltage-sweep polynomial models cover the smallest through the largest recorded voltage. All estimates assume constant RF input power and no additional capacitor leakage or device load.</p>
+          <p class="note">Datasheet values at a single output voltage use a constant-power approximation: t = C·(V₁² − V₀²)/(2·Pdc). It assumes the listed Pdc remains constant during charging. Targets above the datasheet reference voltage are calculated and labeled as extrapolations; these estimates do not establish that the harvester can reach the target voltage. Voltage-sweep polynomial models cover the smallest through the largest recorded voltage. All estimates assume constant RF input power and no additional capacitor leakage or device load.</p>
           <p id="charge-data-note" class="note" style="margin-top: 8px;"></p>
           <div id="charge-error" class="errors hidden" role="alert"></div>
           <div class="actions" style="margin-top: 12px;">
@@ -1126,13 +1126,14 @@
           / weights.reduce((sum, weight) => sum + weight * weight, 0);
       }
       return { a: 0, b: 0, c: power, coefficients: [power, 0, 0], xCenter: 0, xScale: 1,
-        xMin: 0, xMax: points[0].x, pointCount: nonzero.length, excludedZeroCount: points.length - nonzero.length };
+        xMin: 0, xMax: points[0].x, constantPower: true,
+        pointCount: nonzero.length, excludedZeroCount: points.length - nonzero.length };
     }
 
     function integrateChargeTime(fit, farads, startVoltage, endVoltage, intervals = CHARGE_INTERVALS) {
       const unavailable = (status) => ({ status, seconds: null, trace: [] });
       const tolerance = 1e-12 * Math.max(1, fit.xMax);
-      if (startVoltage < fit.xMin - tolerance || endVoltage > fit.xMax + tolerance) {
+      if (!fit.constantPower && (startVoltage < fit.xMin - tolerance || endVoltage > fit.xMax + tolerance)) {
         return unavailable('outside_range');
       }
       // Check the whole transition, including any interior minimum, so a narrow
@@ -1213,6 +1214,7 @@
 
       const series = new Map();
       let estimatedCount = 0;
+      let extrapolatedCount = 0;
       document.getElementById('charge-rf-heading').textContent = 'PRF (' + rfUnit + ')';
       Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label) || a.level - b.level).forEach((entry) => {
         let fit = fitQuadratic(entry.points);
@@ -1225,13 +1227,17 @@
         }
         const result = fit ? integrateChargeTime(fit, farads, startVoltage, endVoltage)
           : { status: 'insufficient_data', seconds: null, trace: [] };
+        const extrapolated = result.status === 'estimated' && model === 'constant_power_datasheet'
+          && endVoltage > fit.xMax + 1e-12 * Math.max(1, fit.xMax);
         chargeResultData.push({ ...entry, model, fit, status: result.status, seconds: result.seconds,
-          farads, startVoltage, endVoltage, rfUnit });
+          extrapolated, farads, startVoltage, endVoltage, rfUnit });
         const rfPower = convertAxisValue('level_dbm', entry.level, rfUnit);
         const row = document.createElement('tr');
         [entry.label, Number(rfPower.toPrecision(8)), model === 'constant_power_datasheet' ? 'Constant-power approximation' : 'Relative-error quadratic',
           result.seconds === null ? '—' : Number(result.seconds.toPrecision(8)),
-          CHARGE_STATUS_LABELS[result.status] + (fit?.excludedZeroCount ? ' (' + fit.excludedZeroCount + ' zero-power points excluded)' : ''),
+          CHARGE_STATUS_LABELS[result.status]
+            + (extrapolated ? ' (beyond datasheet reference voltage; target reachability unverified)' : '')
+            + (fit?.excludedZeroCount ? ' (' + fit.excludedZeroCount + ' zero-power points excluded)' : ''),
           entry.points.length, fit?.a ?? '—', fit?.b ?? '—', fit?.c ?? '—'].forEach((value) => {
           const cell = document.createElement('td');
           cell.textContent = String(value);
@@ -1248,6 +1254,9 @@
         series.get(seriesKey).data.push({ x: rfPower, y: result.seconds });
         if (result.status === 'estimated') {
           estimatedCount += 1;
+          if (extrapolated) {
+            extrapolatedCount += 1;
+          }
         }
       });
       const datasets = Array.from(series.values()).filter((dataset) => dataset.data.some((point) => point.y !== null));
@@ -1255,6 +1264,7 @@
       document.getElementById('charge-summary').textContent = capacitanceInput.value + ' ' + capacitanceUnit.value
         + ', ' + startVoltage + ' V → ' + endVoltage + ' V. Estimated ' + estimatedCount + ' of '
         + groups.size + ' RF operating points across ' + datasets.length + ' curves.'
+        + (extrapolatedCount ? ' ' + extrapolatedCount + ' use constant-power extrapolation beyond the datasheet reference voltage; target reachability is unverified.' : '')
         + (estimatedCount ? '' : ' No points can be plotted for this transition. Open the per-power results to check model voltage ranges and charging-power availability.');
       chargeResults.classList.remove('hidden');
       downloadChargeButton.disabled = false;
@@ -1280,7 +1290,7 @@
       }
       const header = ['harvester', 'source', 'model', ...CHARGE_CONDITION_KEYS, 'prf_dbm', 'prf_w', 'capacitance_f',
         'initial_voltage_v', 'target_voltage_v', 'charge_time_s', 'status', 'data_points',
-        'a_w_per_v2', 'b_w_per_v', 'c_w', 'max_model_voltage_v', 'integration_intervals', 'fit_objective', 'fitted_points', 'excluded_zero_points', 'chart_prf', 'chart_prf_unit'];
+        'a_w_per_v2', 'b_w_per_v', 'c_w', 'max_data_voltage_v', 'integration_intervals', 'fit_objective', 'fitted_points', 'excluded_zero_points', 'chart_prf', 'chart_prf_unit', 'extrapolated'];
       const lines = [header.map(csvEscape).join(',')];
       chargeResultData.forEach((entry) => {
         const conditions = new Map(entry.conditions.map((part) => [part.key, part.value]));
@@ -1289,7 +1299,7 @@
           entry.seconds, entry.status, entry.points.length, entry.fit?.a, entry.fit?.b, entry.fit?.c,
           entry.fit?.xMax, CHARGE_INTERVALS, 'squared_relative_error', entry.fit?.pointCount,
           entry.points.filter((point) => point.y === 0).length,
-          convertAxisValue('level_dbm', entry.level, entry.rfUnit), entry.rfUnit].map(csvEscape).join(','));
+          convertAxisValue('level_dbm', entry.level, entry.rfUnit), entry.rfUnit, entry.extrapolated].map(csvEscape).join(','));
       });
       triggerCsvDownload(lines.join('\n'), 'harvester-charge-time');
     }
