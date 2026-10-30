@@ -287,7 +287,7 @@
             Fit Pdc versus linear PRF (2nd order polynomial)
           </label>
           <p class="note">Fitting requires X = RF input power and Y = DC output power. Enabling it switches PRF from dBm to µW. Each fit keeps harvester, target voltage, operating frequency and tuning frequency separate.</p>
-          <p class="note">Each fit uses all plotted points in its series, including measured and datasheet data, after applying the chart filters.</p>
+          <p class="note">Each fit minimizes squared relative error, Σ[(Pdc_fit − Pdc)/Pdc]², using plotted measured and datasheet points after applying the chart filters. Zero-power points remain plotted and are excluded from fitting because relative error is undefined at zero.</p>
           <div class="actions" style="margin-top: 12px;">
             <button type="button" id="clear-filters-button" class="secondary">Clear Filters</button>
             <button type="button" id="plot-button" class="secondary">Plot Chart</button>
@@ -349,7 +349,7 @@
               </label>
             </div>
           </div>
-          <p class="note" style="margin-top: 12px;">Fits Pdc(V) = a·V² + b·V + c in watts using the recorded buffer-voltage and power points. All three coefficients are fitted freely. Charge time sums C·(Vᵢ₊₁² − Vᵢ²)/(2·Pdc(Vmid)) over 1,000 voltage intervals, using the integration method in Section III-A of the supplied paper. Defaults: 10 mF, 0.05 V to 1 V.</p>
+          <p class="note" style="margin-top: 12px;">Fits Pdc(V) = a·V² + b·V + c in watts by minimizing squared relative power error on the recorded points. All three coefficients are fitted freely; zero-power points are excluded from fitting. Charge time sums C·(Vᵢ₊₁² − Vᵢ²)/(2·Pdc(Vmid)) over 1,000 voltage intervals, using the integration method in Section III-A of the supplied paper. Defaults: 10 mF, 0.05 V to 1 V.</p>
           <p class="note">Estimates assume constant RF input power and no additional capacitor leakage or device load. The model spans the smallest through the largest measured voltage; unavailable ranges and nonpositive charging power are reported per series.</p>
           <p id="charge-data-note" class="note" style="margin-top: 8px;"></p>
           <div id="charge-error" class="errors hidden" role="alert"></div>
@@ -448,7 +448,7 @@
     const CHARGE_CONDITION_KEYS = ['frequency_mhz', 'tuning_frequency_mhz'];
     const CHARGE_STATUS_LABELS = {
       estimated: 'Estimated',
-      insufficient_data: 'Insufficient distinct measured voltages',
+      insufficient_data: 'Insufficient distinct measured voltages with nonzero power, or unstable fit',
       outside_range: 'Outside measured voltage range',
       nonpositive_power: 'Target unreachable in fitted model',
       no_finite_time: 'No finite charging time from this voltage',
@@ -945,6 +945,8 @@
     }
 
     function fitQuadratic(points) {
+      const excludedZeroCount = points.filter((point) => point.y === 0).length;
+      points = points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.y !== 0);
       if (points.length < 3 || new Set(points.map((point) => point.x)).size < 3) {
         return null;
       }
@@ -956,10 +958,15 @@
         return null;
       }
 
-      // Scale X before solving least squares with reorthogonalized QR. This avoids
-      // squaring the condition number and handles axes with large offsets/units.
+      // Minimize sum(((prediction - y) / y)^2): scale each design row and
+      // target by 1/abs(y). A common min(abs(y)) factor keeps row scales <= 1
+      // without changing the minimizer. Center/scale X and use QR for stability.
       const z = points.map((point) => (point.x - xCenter) / xScale);
-      const basis = [z.map(() => 1), z, z.map((value) => value * value)];
+      const powerScale = points.reduce((min, point) => Math.min(min, Math.abs(point.y)), Infinity);
+      const rowScales = points.map((point) => powerScale / Math.abs(point.y));
+      const targets = points.map((point) => Math.sign(point.y) * powerScale);
+      const basis = [rowScales, z.map((value, i) => value * rowScales[i]),
+        z.map((value, i) => value * value * rowScales[i])];
       const q = [];
       const r = Array.from({ length: 3 }, () => [0, 0, 0]);
       for (let col = 0; col < 3; col += 1) {
@@ -972,13 +979,14 @@
           }
         }
         const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
-        if (!Number.isFinite(norm) || norm <= 1e-12 * Math.sqrt(points.length)) {
+        const originalNorm = Math.sqrt(basis[col].reduce((sum, value) => sum + value * value, 0));
+        if (!Number.isFinite(norm) || norm <= 1e-12 * originalNorm) {
           return null;
         }
         r[col][col] = norm;
         q.push(vector.map((value) => value / norm));
       }
-      const coefficients = q.map((vector) => vector.reduce((sum, value, i) => sum + value * points[i].y, 0));
+      const coefficients = q.map((vector) => vector.reduce((sum, value, i) => sum + value * targets[i], 0));
       for (let row = 2; row >= 0; row -= 1) {
         for (let col = row + 1; col < 3; col += 1) {
           coefficients[row] -= r[row][col] * coefficients[col];
@@ -992,7 +1000,7 @@
       if (![a, b, c, ...coefficients].every(Number.isFinite)) {
         return null;
       }
-      return { a, b, c, xMin, xMax, xCenter, xScale, coefficients, pointCount: points.length };
+      return { a, b, c, xMin, xMax, xCenter, xScale, coefficients, pointCount: points.length, excludedZeroCount };
     }
 
     function evaluateQuadratic(fit, x) {
@@ -1015,16 +1023,16 @@
     }
 
     function fitFailureReason(points) {
-      const distinctCount = new Set(points.map((point) => point.x)).size;
+      const distinctCount = new Set(points.filter((point) => point.y !== 0).map((point) => point.x)).size;
       if (distinctCount < 3) {
-        return 'Needs at least 3 distinct PRF values; found ' + distinctCount + '.';
+        return 'Needs at least 3 distinct PRF values with nonzero Pdc; found ' + distinctCount + '.';
       }
       return 'Could not obtain a numerically stable quadratic fit.';
     }
 
     function renderFitResults(xUnit, yUnit, attempts) {
       fitEquation.textContent = 'Pdc = a·PRF² + b·PRF + c; PRF in ' + xUnit + ', Pdc in ' + yUnit + '.';
-      fitNote.textContent = 'Least-squares fits use all plotted DC output power points versus RF input power, both in linear units. Coefficients use the units shown above. Curves are dashed at 50% opacity within the fitted data range. Fitted '
+      fitNote.textContent = 'Fits minimize Σ[(Pdc_fit − Pdc)/Pdc]² in linear power units. Zero-power points are excluded from fitting. Coefficients use the units shown above. Curves are dashed at 50% opacity within the fitted data range. Fitted '
         + fitParameterData.length + ' of ' + attempts.length + ' series; see each status below.';
       attempts.forEach((entry) => {
         const row = document.createElement('tr');
@@ -1044,13 +1052,14 @@
       if (fitParameterData.length === 0) {
         return;
       }
-      const header = ['harvester', 'series', 'source', 'x_axis', 'y_axis', 'x_unit', 'y_unit', 'a', 'b', 'c', 'fitted_points', 'x_min', 'x_max', ...POWER_FIT_CONDITION_KEYS];
+      const header = ['harvester', 'series', 'source', 'x_axis', 'y_axis', 'x_unit', 'y_unit', 'a', 'b', 'c', 'fitted_points', 'x_min', 'x_max', ...POWER_FIT_CONDITION_KEYS, 'fit_objective', 'excluded_zero_points'];
       const lines = [header.map(csvEscape).join(',')];
       fitParameterData.forEach(({ harvester, label, source, xUnit, yUnit, signatureParts, fit }) => {
         const conditions = new Map(signatureParts.map((part) => [part.key, part.value]));
         lines.push([
           harvester, label, source, 'PRF', 'Pdc', xUnit, yUnit, fit.a, fit.b, fit.c, fit.pointCount, fit.xMin, fit.xMax,
           ...POWER_FIT_CONDITION_KEYS.map((key) => conditions.get(key) ?? ''),
+          'squared_relative_error', fit.excludedZeroCount,
         ].map(csvEscape).join(','));
       });
       triggerCsvDownload(lines.join('\n'), 'harvester-quadratic-fit-parameters');
@@ -1204,7 +1213,8 @@
         chargeResultData.push({ ...entry, fit, ...result, farads, startVoltage, endVoltage, level });
         const row = document.createElement('tr');
         [entry.label, result.seconds === null ? '—' : Number(result.seconds.toPrecision(8)),
-          CHARGE_STATUS_LABELS[result.status], entry.points.length, fit?.a ?? '—', fit?.b ?? '—', fit?.c ?? '—'].forEach((value) => {
+          CHARGE_STATUS_LABELS[result.status] + (fit?.excludedZeroCount ? ' (' + fit.excludedZeroCount + ' zero-power points excluded)' : ''),
+          entry.points.length, fit?.a ?? '—', fit?.b ?? '—', fit?.c ?? '—'].forEach((value) => {
           const cell = document.createElement('td');
           cell.textContent = String(value);
           row.appendChild(cell);
@@ -1243,14 +1253,15 @@
       }
       const header = ['harvester', ...CHARGE_CONDITION_KEYS, 'prf_dbm', 'prf_w', 'capacitance_f',
         'initial_voltage_v', 'target_voltage_v', 'charge_time_s', 'status', 'measured_points',
-        'a_w_per_v2', 'b_w_per_v', 'c_w', 'max_measured_voltage_v', 'integration_intervals'];
+        'a_w_per_v2', 'b_w_per_v', 'c_w', 'max_measured_voltage_v', 'integration_intervals', 'fit_objective', 'fitted_points', 'excluded_zero_points'];
       const lines = [header.map(csvEscape).join(',')];
       chargeResultData.forEach((entry) => {
         const conditions = new Map(entry.conditions.map((part) => [part.key, part.value]));
         lines.push([entry.harvester, ...CHARGE_CONDITION_KEYS.map((key) => conditions.get(key)), entry.level,
           convertAxisValue('level_dbm', entry.level, 'W'), entry.farads, entry.startVoltage, entry.endVoltage,
           entry.seconds, entry.status, entry.points.length, entry.fit?.a, entry.fit?.b, entry.fit?.c,
-          entry.fit?.xMax, CHARGE_INTERVALS].map(csvEscape).join(','));
+          entry.fit?.xMax, CHARGE_INTERVALS, 'squared_relative_error', entry.fit?.pointCount,
+          entry.points.filter((point) => point.y === 0).length].map(csvEscape).join(','));
       });
       triggerCsvDownload(lines.join('\n'), 'harvester-charge-time');
     }
@@ -1484,8 +1495,9 @@
           const source = Array.from(entry.sources).sort().join(' + ');
           const points = entry.points;
           const fit = fitQuadratic(points);
-          fitAttempts.push({ label, source, fit, pointCount: points.length,
-            status: fit ? 'Fitted' : fitFailureReason(points) });
+          fitAttempts.push({ label, source, fit, pointCount: fit?.pointCount ?? points.filter((point) => point.y !== 0).length,
+            status: fit ? 'Fitted' + (fit.excludedZeroCount ? ' (' + fit.excludedZeroCount + ' zero-power points excluded)' : '')
+              : fitFailureReason(points) });
           if (!fit) {
             return;
           }
