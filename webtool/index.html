@@ -279,9 +279,16 @@
           </div>
           <label style="margin-top: 12px;">
             <input type="checkbox" id="quadratic-fit">
-            Fit measured Pdc versus linear PRF (2nd order polynomial)
+            Fit Pdc versus linear PRF (2nd order polynomial)
+          </label>
+          <label style="margin-top: 8px;" for="fit-source">Fit data source
+            <select id="fit-source">
+              <option value="measured" selected>Measured (calibrated load)</option>
+              <option value="datasheet">Datasheet</option>
+            </select>
           </label>
           <p class="note">Fitting requires X = RF input power and Y = DC output power. Enabling it switches PRF from dBm to µW. Each fit keeps harvester, target voltage, operating frequency and tuning frequency separate.</p>
+          <p class="note">Measured data are fitted by default. Choose Datasheet to fit datasheet points; the fit and its exported parameters are labeled with their source.</p>
           <div class="actions" style="margin-top: 12px;">
             <button type="button" id="clear-filters-button" class="secondary">Clear Filters</button>
             <button type="button" id="plot-button" class="secondary">Plot Chart</button>
@@ -299,7 +306,7 @@
           <div class="fit-table-scroll">
             <table aria-label="Quadratic fit parameters">
               <thead>
-                <tr><th scope="col">Series</th><th scope="col">a (Pdc/PRF²)</th><th scope="col">b (Pdc/PRF)</th><th scope="col">c (Pdc)</th><th scope="col">Measured points</th></tr>
+                <tr><th scope="col">Series</th><th scope="col">Source</th><th scope="col">a (Pdc/PRF²)</th><th scope="col">b (Pdc/PRF)</th><th scope="col">c (Pdc)</th><th scope="col">Fitted points</th><th scope="col">Status</th></tr>
               </thead>
               <tbody id="fit-parameter-rows"></tbody>
             </table>
@@ -394,6 +401,7 @@
     const downloadChartButton = document.getElementById('download-chart-button');
     const chartCanvas = document.getElementById('harvester-chart');
     const quadraticFit = document.getElementById('quadratic-fit');
+    const fitSource = document.getElementById('fit-source');
     const fitResults = document.getElementById('fit-results');
     const fitEquation = document.getElementById('fit-equation');
     const fitNote = document.getElementById('fit-note');
@@ -835,9 +843,14 @@
 
     function syncFitAvailability() {
       quadraticFit.disabled = !powerFitAxesSelected();
+      fitSource.disabled = quadraticFit.disabled;
       if (quadraticFit.disabled) {
         quadraticFit.checked = false;
       }
+    }
+
+    function selectedFitSource() {
+      return fitSource.value === 'datasheet' ? 'datasheet' : 'measured';
     }
 
     function chartSettings(xKey, yKey) {
@@ -977,13 +990,31 @@
       downloadFitButton.disabled = true;
     }
 
-    function renderFitResults(xUnit, yUnit, skippedCount) {
+    function fitFailureReason(entry, points, source) {
+      if (points.length === 0) {
+        const otherSource = source === 'measured' ? 'datasheet' : 'measured';
+        const otherPoints = source === 'measured' ? entry.datasheetPoints : entry.measuredPoints;
+        return 'No ' + source + ' points.' + (otherPoints.length
+          ? ' This series has ' + otherPoints.length + ' ' + otherSource
+            + ' points; choose ' + otherSource + ' in Fit data source to fit them.'
+          : ' Check the Data Source filter.');
+      }
+      const distinctCount = new Set(points.map((point) => point.x)).size;
+      if (distinctCount < 3) {
+        return 'Needs at least 3 distinct PRF values; found ' + distinctCount + '.';
+      }
+      return 'Could not obtain a numerically stable quadratic fit.';
+    }
+
+    function renderFitResults(xUnit, yUnit, attempts) {
       fitEquation.textContent = 'Pdc = a·PRF² + b·PRF + c; PRF in ' + xUnit + ', Pdc in ' + yUnit + '.';
-      fitNote.textContent = 'Least-squares fits use only measured DC output power versus RF input power, both in linear units. Coefficients use the units shown above. Curves are dashed at 50% opacity within the measured PRF range.'
-        + (skippedCount ? ' Skipped ' + skippedCount + ' series: each fit needs at least three distinct measured X values and a numerically stable solution.' : '');
-      fitParameterData.forEach((entry) => {
+      fitNote.textContent = 'Least-squares fits use ' + selectedFitSource()
+        + ' DC output power versus RF input power, both in linear units. Coefficients use the units shown above. Curves are dashed at 50% opacity within the fitted data range. Fitted '
+        + fitParameterData.length + ' of ' + attempts.length + ' series; see each status below.';
+      attempts.forEach((entry) => {
         const row = document.createElement('tr');
-        [entry.label, entry.fit.a, entry.fit.b, entry.fit.c, entry.fit.pointCount].forEach((value) => {
+        [entry.label, entry.source, entry.fit?.a ?? '—', entry.fit?.b ?? '—', entry.fit?.c ?? '—',
+          entry.pointCount, entry.status].forEach((value) => {
           const cell = document.createElement('td');
           cell.textContent = String(value);
           row.appendChild(cell);
@@ -998,12 +1029,12 @@
       if (fitParameterData.length === 0) {
         return;
       }
-      const header = ['harvester', 'series', 'x_axis', 'y_axis', 'x_unit', 'y_unit', 'a', 'b', 'c', 'measured_points', 'x_min', 'x_max', ...POWER_FIT_CONDITION_KEYS];
+      const header = ['harvester', 'series', 'source', 'x_axis', 'y_axis', 'x_unit', 'y_unit', 'a', 'b', 'c', 'fitted_points', 'x_min', 'x_max', ...POWER_FIT_CONDITION_KEYS];
       const lines = [header.map(csvEscape).join(',')];
-      fitParameterData.forEach(({ harvester, label, xUnit, yUnit, signatureParts, fit }) => {
+      fitParameterData.forEach(({ harvester, label, source, xUnit, yUnit, signatureParts, fit }) => {
         const conditions = new Map(signatureParts.map((part) => [part.key, part.value]));
         lines.push([
-          harvester, label, 'PRF', 'Pdc', xUnit, yUnit, fit.a, fit.b, fit.c, fit.pointCount, fit.xMin, fit.xMax,
+          harvester, label, source, 'PRF', 'Pdc', xUnit, yUnit, fit.a, fit.b, fit.c, fit.pointCount, fit.xMin, fit.xMax,
           ...POWER_FIT_CONDITION_KEYS.map((key) => conditions.get(key) ?? ''),
         ].map(csvEscape).join(','));
       });
@@ -1291,11 +1322,14 @@
               signatureParts,
               points: [],
               measuredPoints: [],
+              datasheetPoints: [],
             });
           }
           series.get(seriesKey).points.push({ x: xVal, y: yVal });
           if (String(row.source).trim().toLowerCase() === 'measured') {
             series.get(seriesKey).measuredPoints.push({ x: xVal, y: yVal });
+          } else if (String(row.source).trim().toLowerCase() === 'datasheet') {
+            series.get(seriesKey).datasheetPoints.push({ x: xVal, y: yVal });
           }
         });
       });
@@ -1413,7 +1447,7 @@
       const settings = chartSettings(xKey, yKey);
       if (quadraticFit.checked && (!powerFitAxesSelected()
         || !POWER_UNITS[settings.xUnit] || !POWER_UNITS[settings.yUnit])) {
-        showError('Fitting requires RF input power (X) and measured DC output power (Y), both in linear power units.');
+        showError('Fitting requires RF input power (X) and DC output power (Y), both in linear power units.');
         return;
       }
       const chartData = buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters, settings);
@@ -1423,7 +1457,7 @@
       }
 
       const datasets = [];
-      let skippedFits = 0;
+      const fitAttempts = [];
       chartData.sortedSeries.forEach((entry, idx) => {
         const color = getColor(idx);
         const suffix = formatFilterParts(entry.signatureParts);
@@ -1437,14 +1471,17 @@
           showLine: false,
         });
         if (quadraticFit.checked) {
-          const fit = fitQuadratic(entry.measuredPoints);
+          const source = selectedFitSource();
+          const points = source === 'measured' ? entry.measuredPoints : entry.datasheetPoints;
+          const fit = fitQuadratic(points);
+          fitAttempts.push({ label, source, fit, pointCount: points.length,
+            status: fit ? 'Fitted' : fitFailureReason(entry, points, source) });
           if (!fit) {
-            skippedFits += 1;
             return;
           }
-          fitParameterData.push({ harvester: entry.harvester, label, xUnit: settings.xUnit, yUnit: settings.yUnit, signatureParts: entry.signatureParts, fit });
+          fitParameterData.push({ harvester: entry.harvester, label, source, xUnit: settings.xUnit, yUnit: settings.yUnit, signatureParts: entry.signatureParts, fit });
           datasets.push({
-            label: label + ' (quadratic fit)',
+            label: label + ' (quadratic fit, ' + source + ')',
             data: quadraticCurve(fit),
             borderColor: withOpacity(color, 0.5),
             backgroundColor: withOpacity(color, 0.5),
@@ -1484,7 +1521,7 @@
         },
       });
       if (quadraticFit.checked) {
-        renderFitResults(settings.xUnit, settings.yUnit, skippedFits);
+        renderFitResults(settings.xUnit, settings.yUnit, fitAttempts);
       }
     }
 
@@ -1598,6 +1635,12 @@
     };
     xUnitSelect.addEventListener('change', handleUnitChange);
     yUnitSelect.addEventListener('change', handleUnitChange);
+    fitSource.addEventListener('change', () => {
+      clearFitResults();
+      if (quadraticFit.checked) {
+        plotChart();
+      }
+    });
     quadraticFit.addEventListener('change', () => {
       syncFitAvailability();
       if (quadraticFit.checked && xUnitSelect.value === 'dBm') {
