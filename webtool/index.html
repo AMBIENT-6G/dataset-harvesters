@@ -89,7 +89,7 @@
       gap: 6px;
       font-size: 14px;
     }
-    select {
+    select, input[type="number"] {
       padding: 8px 10px;
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -197,6 +197,30 @@
       width: 100%;
       height: 360px;
     }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .fit-results {
+      margin-top: 16px;
+    }
+    .charge-calculator {
+      margin-top: 20px;
+    }
+    .fit-table-scroll {
+      overflow-x: auto;
+      margin: 10px 0;
+    }
+    .fit-results table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .fit-results th, .fit-results td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
@@ -235,18 +259,29 @@
           <legend>Chart</legend>
           <div class="grid">
             <div class="field">
-              <span>X axis</span>
+              <label for="x-axis">X axis</label>
               <select id="x-axis"></select>
+              <label id="x-unit-field" class="hidden" for="x-unit">Units
+                <select id="x-unit"></select>
+              </label>
             </div>
             <div class="field">
-              <span>Y axis</span>
+              <label for="y-axis">Y axis</label>
               <select id="y-axis"></select>
+              <label id="y-unit-field" class="hidden" for="y-unit">Units
+                <select id="y-unit"></select>
+              </label>
             </div>
           </div>
           <div class="chart-filters">
             <p class="note">Optional filters for non X/Y columns. Open a dropdown and tick multiple boxes; each value set appears as a separate series.</p>
             <div id="chart-filter-list" class="grid"></div>
           </div>
+          <label style="margin-top: 12px;">
+            <input type="checkbox" id="quadratic-fit">
+            Fit measured Pdc versus linear PRF (2nd order polynomial)
+          </label>
+          <p class="note">Fitting requires X = RF input power and Y = DC output power. Enabling it switches PRF from dBm to µW. Each fit keeps harvester, target voltage, operating frequency and tuning frequency separate.</p>
           <div class="actions" style="margin-top: 12px;">
             <button type="button" id="clear-filters-button" class="secondary">Clear Filters</button>
             <button type="button" id="plot-button" class="secondary">Plot Chart</button>
@@ -258,6 +293,75 @@
         <div class="chart-area">
           <canvas id="harvester-chart"></canvas>
         </div>
+        <div id="fit-results" class="fit-results hidden" aria-live="polite">
+          <p id="fit-equation">Pdc = a·PRF² + b·PRF + c</p>
+          <p id="fit-note" class="note"></p>
+          <div class="fit-table-scroll">
+            <table aria-label="Quadratic fit parameters">
+              <thead>
+                <tr><th scope="col">Series</th><th scope="col">a (Pdc/PRF²)</th><th scope="col">b (Pdc/PRF)</th><th scope="col">c (Pdc)</th><th scope="col">Measured points</th></tr>
+              </thead>
+              <tbody id="fit-parameter-rows"></tbody>
+            </table>
+          </div>
+          <button type="button" id="download-fit-button" class="secondary" disabled>Download Fit Parameters CSV</button>
+        </div>
+
+        <fieldset class="charge-calculator">
+          <legend>Capacitor charge time</legend>
+          <p class="note">Uses full measured voltage sweeps for the selected harvesters and frequency/source filters. Target-voltage chart filters do not limit the sweep.</p>
+          <div class="grid" style="margin-top: 12px;">
+            <div class="field">
+              <label for="capacitance">Capacitance</label>
+              <input type="number" id="capacitance" value="10" min="0" step="any">
+              <label for="capacitance-unit">Units
+                <select id="capacitance-unit">
+                  <option value="F">F</option>
+                  <option value="mF" selected>mF</option>
+                  <option value="µF">µF</option>
+                  <option value="nF">nF</option>
+                </select>
+              </label>
+            </div>
+            <div class="field">
+              <label for="charge-start-voltage">Initial voltage (V)</label>
+              <input type="number" id="charge-start-voltage" value="0.05" min="0" step="any">
+              <label for="charge-end-voltage">Target voltage (V)</label>
+              <input type="number" id="charge-end-voltage" value="1" min="0" step="any">
+            </div>
+            <div class="field">
+              <label for="charge-rf-level">Measured RF input power, PRF</label>
+              <select id="charge-rf-level" disabled></select>
+              <label for="charge-rf-unit">Units
+                <select id="charge-rf-unit">
+                  <option>dBm</option><option>W</option><option>mW</option><option>µW</option><option>nW</option><option>pW</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <p class="note" style="margin-top: 12px;">Fits Pdc(V) = a·V² + b·V + c in watts using measured buffer voltages, with (0 V, 0 W) added as an anchor. Charge time sums C·(Vᵢ₊₁² − Vᵢ²)/(2·Pdc(Vmid)) over 1,000 voltage intervals, following Section III-A of the supplied paper. Defaults: 10 mF, 0.05 V to 1 V.</p>
+          <p class="note">Estimates assume constant RF input power and no additional capacitor leakage or device load. The model spans the zero-voltage anchor through the largest measured voltage; unavailable ranges and nonpositive charging power are reported per series.</p>
+          <p id="charge-data-note" class="note" style="margin-top: 8px;"></p>
+          <div id="charge-error" class="errors hidden" role="alert"></div>
+          <div class="actions" style="margin-top: 12px;">
+            <button type="button" id="calculate-charge-button" disabled>Calculate Charge Time</button>
+            <button type="button" id="download-charge-button" class="secondary" disabled>Download Charge-Time CSV</button>
+          </div>
+          <div id="charge-results" class="fit-results hidden" aria-live="polite">
+            <p id="charge-summary" class="note"></p>
+            <div class="fit-table-scroll">
+              <table aria-label="Capacitor charge-time estimates">
+                <thead>
+                  <tr><th scope="col">Series</th><th scope="col">Time (s)</th><th scope="col">Status</th><th scope="col">Measured points</th><th scope="col">a (W/V²)</th><th scope="col">b (W/V)</th><th scope="col">c (W)</th></tr>
+                </thead>
+                <tbody id="charge-result-rows"></tbody>
+              </table>
+            </div>
+            <div id="charge-chart-area" class="chart-area hidden">
+              <canvas id="charge-chart"></canvas>
+            </div>
+          </div>
+        </fieldset>
       </form>
     </div>
   </div>
@@ -282,11 +386,32 @@
     const downloadButton = document.getElementById('download-button');
     const xAxisSelect = document.getElementById('x-axis');
     const yAxisSelect = document.getElementById('y-axis');
+    const xUnitSelect = document.getElementById('x-unit');
+    const yUnitSelect = document.getElementById('y-unit');
     const chartFilterList = document.getElementById('chart-filter-list');
     const clearFiltersButton = document.getElementById('clear-filters-button');
     const plotButton = document.getElementById('plot-button');
     const downloadChartButton = document.getElementById('download-chart-button');
     const chartCanvas = document.getElementById('harvester-chart');
+    const quadraticFit = document.getElementById('quadratic-fit');
+    const fitResults = document.getElementById('fit-results');
+    const fitEquation = document.getElementById('fit-equation');
+    const fitNote = document.getElementById('fit-note');
+    const fitParameterRows = document.getElementById('fit-parameter-rows');
+    const downloadFitButton = document.getElementById('download-fit-button');
+    const capacitanceInput = document.getElementById('capacitance');
+    const capacitanceUnit = document.getElementById('capacitance-unit');
+    const chargeStartVoltage = document.getElementById('charge-start-voltage');
+    const chargeEndVoltage = document.getElementById('charge-end-voltage');
+    const chargeRfLevel = document.getElementById('charge-rf-level');
+    const chargeRfUnit = document.getElementById('charge-rf-unit');
+    const chargeDataNote = document.getElementById('charge-data-note');
+    const chargeError = document.getElementById('charge-error');
+    const calculateChargeButton = document.getElementById('calculate-charge-button');
+    const downloadChargeButton = document.getElementById('download-charge-button');
+    const chargeResults = document.getElementById('charge-results');
+    const chargeResultRows = document.getElementById('charge-result-rows');
+    const chargeChartArea = document.getElementById('charge-chart-area');
 
     const CHART_FILTER_EXCLUDED_KEYS = new Set([
       'pwr_pw',
@@ -294,12 +419,34 @@
       'resistance',
     ]);
     const DEFAULT_X_AXIS_KEY = 'level_dbm';
-    const DEFAULT_Y_AXIS_KEY = 'efficiency';
+    const DEFAULT_Y_AXIS_KEY = 'pwr_pw';
+    const POWER_UNITS = {
+      W: { watts: 1, suffix: 'w' },
+      mW: { watts: 1e-3, suffix: 'mw' },
+      'µW': { watts: 1e-6, suffix: 'uw' },
+      nW: { watts: 1e-9, suffix: 'nw' },
+      pW: { watts: 1e-12, suffix: 'pw' },
+    };
+    const POWER_FIT_CONDITION_KEYS = ['target_voltage_mv', 'frequency_mhz', 'tuning_frequency_mhz'];
+    const CAPACITANCE_UNITS = { F: 1, mF: 1e-3, 'µF': 1e-6, nF: 1e-9 };
+    const CHARGE_CONDITION_KEYS = ['frequency_mhz', 'tuning_frequency_mhz'];
+    const CHARGE_STATUS_LABELS = {
+      estimated: 'Estimated',
+      insufficient_data: 'Insufficient distinct measured voltages',
+      outside_range: 'Outside measured voltage range',
+      nonpositive_power: 'Target unreachable in fitted model',
+      no_finite_time: 'No finite charging time from this voltage',
+      numerical_limit: 'Estimate exceeds numeric range',
+    };
+    const CHARGE_INTERVALS = 1000;
 
     const harvesterData = new Map();
     let columnKeys = [];
     let termMetaByKey = {};
     let chartInstance = null;
+    let fitParameterData = [];
+    let chargeResultData = [];
+    let chargeChartInstance = null;
 
     function showError(message) {
       errorBox.textContent = message;
@@ -616,6 +763,91 @@
       return fallbackIndex;
     }
 
+    function renderAxisUnits(axisSelect, unitSelect, fieldId) {
+      const key = axisSelect.value;
+      const isPower = key === 'level_dbm' || key === 'pwr_pw';
+      const previousUnit = unitSelect.dataset.axisKey === key ? unitSelect.value : '';
+      unitSelect.dataset.axisKey = key;
+      unitSelect.replaceChildren();
+      document.getElementById(fieldId).classList[isPower ? 'remove' : 'add']('hidden');
+      unitSelect.disabled = !isPower;
+      if (!isPower) {
+        return;
+      }
+      const units = key === 'level_dbm' ? ['dBm', ...Object.keys(POWER_UNITS)] : Object.keys(POWER_UNITS);
+      units.forEach((unit) => {
+        const option = document.createElement('option');
+        option.value = unit;
+        option.textContent = unit;
+        unitSelect.appendChild(option);
+      });
+      unitSelect.value = units.includes(previousUnit) ? previousUnit : (key === 'level_dbm' ? 'dBm' : 'µW');
+    }
+
+    function axisUnit(key, unitSelect) {
+      return key === 'level_dbm' || key === 'pwr_pw' ? unitSelect.value : '';
+    }
+
+    function axisLabel(key, unit) {
+      if (key === 'level_dbm') {
+        return 'RF Input Power, PRF (' + unit + ')';
+      }
+      if (key === 'pwr_pw') {
+        return 'DC Output Power, Pdc (' + unit + ')';
+      }
+      return termMetaForKey(key).name;
+    }
+
+    function chartAxisMetaForKey(key) {
+      if (key === 'level_dbm') {
+        return { name: 'RF Input Power (PRF)', explanation: 'RF input power. Choose dBm or linear power units below.' };
+      }
+      if (key === 'pwr_pw') {
+        return { name: 'DC Output Power (Pdc)', explanation: 'DC output power. Fits use measured values from the calibrated programmable load.' };
+      }
+      return termMetaForKey(key);
+    }
+
+    function axisCsvKey(key, unit) {
+      if (key === 'level_dbm' && unit !== 'dBm') {
+        return 'prf_' + POWER_UNITS[unit].suffix;
+      }
+      if (key === 'pwr_pw' && unit !== 'pW') {
+        return 'pdc_' + POWER_UNITS[unit].suffix;
+      }
+      return key;
+    }
+
+    function convertAxisValue(key, rawValue, unit) {
+      const value = Number.parseFloat(rawValue);
+      if (key === 'level_dbm' && unit !== 'dBm') {
+        return 10 ** ((value - 30) / 10) / POWER_UNITS[unit].watts;
+      }
+      if (key === 'pwr_pw' && unit !== 'pW') {
+        return value * 1e-12 / POWER_UNITS[unit].watts;
+      }
+      return value;
+    }
+
+    function powerFitAxesSelected() {
+      return xAxisSelect.value === 'level_dbm' && yAxisSelect.value === 'pwr_pw';
+    }
+
+    function syncFitAvailability() {
+      quadraticFit.disabled = !powerFitAxesSelected();
+      if (quadraticFit.disabled) {
+        quadraticFit.checked = false;
+      }
+    }
+
+    function chartSettings(xKey, yKey) {
+      return {
+        xUnit: axisUnit(xKey, xUnitSelect),
+        yUnit: axisUnit(yKey, yUnitSelect),
+        groupPowerConditions: quadraticFit.checked && powerFitAxesSelected(),
+      };
+    }
+
     function rowFilterSignature(row, filters) {
       const parts = [];
       for (const [key, values] of filters.entries()) {
@@ -667,6 +899,316 @@
       return 'hsl(' + hue + ', 65%, 42%)';
     }
 
+    function withOpacity(color, opacity) {
+      if (color.startsWith('#')) {
+        const rgb = [1, 3, 5].map((start) => Number.parseInt(color.slice(start, start + 2), 16));
+        return 'rgba(' + rgb.join(', ') + ', ' + opacity + ')';
+      }
+      return color.replace('hsl(', 'hsla(').replace(')', ', ' + opacity + ')');
+    }
+
+    function fitQuadratic(points) {
+      if (points.length < 3 || new Set(points.map((point) => point.x)).size < 3) {
+        return null;
+      }
+      const xMin = points.reduce((min, point) => Math.min(min, point.x), Infinity);
+      const xMax = points.reduce((max, point) => Math.max(max, point.x), -Infinity);
+      const xCenter = xMin / 2 + xMax / 2;
+      const xScale = Math.max(Math.abs(xMin - xCenter), Math.abs(xMax - xCenter));
+      if (!Number.isFinite(xScale) || xScale === 0) {
+        return null;
+      }
+
+      // Scale X before solving least squares with reorthogonalized QR. This avoids
+      // squaring the condition number and handles axes with large offsets/units.
+      const z = points.map((point) => (point.x - xCenter) / xScale);
+      const basis = [z.map(() => 1), z, z.map((value) => value * value)];
+      const q = [];
+      const r = Array.from({ length: 3 }, () => [0, 0, 0]);
+      for (let col = 0; col < 3; col += 1) {
+        const vector = [...basis[col]];
+        for (let pass = 0; pass < 2; pass += 1) {
+          for (let prev = 0; prev < col; prev += 1) {
+            const projection = vector.reduce((sum, value, i) => sum + value * q[prev][i], 0);
+            r[prev][col] += projection;
+            vector.forEach((value, i) => { vector[i] = value - projection * q[prev][i]; });
+          }
+        }
+        const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+        if (!Number.isFinite(norm) || norm <= 1e-12 * Math.sqrt(points.length)) {
+          return null;
+        }
+        r[col][col] = norm;
+        q.push(vector.map((value) => value / norm));
+      }
+      const coefficients = q.map((vector) => vector.reduce((sum, value, i) => sum + value * points[i].y, 0));
+      for (let row = 2; row >= 0; row -= 1) {
+        for (let col = row + 1; col < 3; col += 1) {
+          coefficients[row] -= r[row][col] * coefficients[col];
+        }
+        coefficients[row] /= r[row][row];
+      }
+      const a = coefficients[2] / xScale / xScale;
+      const b = (coefficients[1] - 2 * coefficients[2] * (xCenter / xScale)) / xScale;
+      const c = coefficients[0] - coefficients[1] * (xCenter / xScale)
+        + coefficients[2] * (xCenter / xScale) ** 2;
+      if (![a, b, c, ...coefficients].every(Number.isFinite)) {
+        return null;
+      }
+      return { a, b, c, xMin, xMax, xCenter, xScale, coefficients, pointCount: points.length };
+    }
+
+    function evaluateQuadratic(fit, x) {
+      const z = (x - fit.xCenter) / fit.xScale;
+      return (fit.coefficients[2] * z + fit.coefficients[1]) * z + fit.coefficients[0];
+    }
+
+    function quadraticCurve(fit) {
+      return Array.from({ length: 101 }, (_, index) => {
+        const x = fit.xMin + (fit.xMax - fit.xMin) * (index / 100);
+        return { x, y: evaluateQuadratic(fit, x) };
+      });
+    }
+
+    function clearFitResults() {
+      fitParameterData = [];
+      fitParameterRows.replaceChildren();
+      fitResults.classList.add('hidden');
+      downloadFitButton.disabled = true;
+    }
+
+    function renderFitResults(xUnit, yUnit, skippedCount) {
+      fitEquation.textContent = 'Pdc = a·PRF² + b·PRF + c; PRF in ' + xUnit + ', Pdc in ' + yUnit + '.';
+      fitNote.textContent = 'Least-squares fits use only measured DC output power versus RF input power, both in linear units. Coefficients use the units shown above. Curves are dashed at 50% opacity within the measured PRF range.'
+        + (skippedCount ? ' Skipped ' + skippedCount + ' series: each fit needs at least three distinct measured X values and a numerically stable solution.' : '');
+      fitParameterData.forEach((entry) => {
+        const row = document.createElement('tr');
+        [entry.label, entry.fit.a, entry.fit.b, entry.fit.c, entry.fit.pointCount].forEach((value) => {
+          const cell = document.createElement('td');
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        });
+        fitParameterRows.appendChild(row);
+      });
+      fitResults.classList.remove('hidden');
+      downloadFitButton.disabled = fitParameterData.length === 0;
+    }
+
+    function downloadFitParameters() {
+      if (fitParameterData.length === 0) {
+        return;
+      }
+      const header = ['harvester', 'series', 'x_axis', 'y_axis', 'x_unit', 'y_unit', 'a', 'b', 'c', 'measured_points', 'x_min', 'x_max', ...POWER_FIT_CONDITION_KEYS];
+      const lines = [header.map(csvEscape).join(',')];
+      fitParameterData.forEach(({ harvester, label, xUnit, yUnit, signatureParts, fit }) => {
+        const conditions = new Map(signatureParts.map((part) => [part.key, part.value]));
+        lines.push([
+          harvester, label, 'PRF', 'Pdc', xUnit, yUnit, fit.a, fit.b, fit.c, fit.pointCount, fit.xMin, fit.xMax,
+          ...POWER_FIT_CONDITION_KEYS.map((key) => conditions.get(key) ?? ''),
+        ].map(csvEscape).join(','));
+      });
+      triggerCsvDownload(lines.join('\n'), 'harvester-quadratic-fit-parameters');
+    }
+
+    function availableChargeRows() {
+      const filters = new Map(Array.from(selectedChartFilters()).filter(
+        ([key]) => key === 'source' || CHARGE_CONDITION_KEYS.includes(key)
+      ));
+      const entries = [];
+      selectedValues(harvesterList).forEach((harvester) => {
+        (harvesterData.get(harvester) || []).forEach((row) => {
+          if (String(row.source).trim().toLowerCase() !== 'measured'
+            || rowFilterSignature(row, filters) === null) {
+            return;
+          }
+          const voltage = Number.parseFloat(row.buffer_voltage_mv) / 1000;
+          const power = Number.parseFloat(row.pwr_pw) * 1e-12;
+          const level = Number.parseFloat(row.level_dbm);
+          if ([voltage, power, level].every(Number.isFinite) && voltage >= 0) {
+            entries.push({ harvester, row, voltage, power, level });
+          }
+        });
+      });
+      return entries;
+    }
+
+    function clearChargeResults() {
+      chargeResultData = [];
+      chargeResultRows.replaceChildren();
+      chargeResults.classList.add('hidden');
+      chargeChartArea.classList.add('hidden');
+      chargeError.classList.add('hidden');
+      chargeError.textContent = '';
+      downloadChargeButton.disabled = true;
+      if (chargeChartInstance) {
+        chargeChartInstance.destroy();
+        chargeChartInstance = null;
+      }
+    }
+
+    function refreshChargeControls() {
+      clearChargeResults();
+      const previousLevel = Number.parseFloat(chargeRfLevel.value);
+      const levels = Array.from(new Set(availableChargeRows().map((entry) => entry.level))).sort((a, b) => a - b);
+      chargeRfLevel.replaceChildren();
+      levels.forEach((level) => {
+        const option = document.createElement('option');
+        option.value = String(level);
+        const power = convertAxisValue('level_dbm', level, chargeRfUnit.value);
+        option.textContent = Number(power.toPrecision(6)) + ' ' + chargeRfUnit.value;
+        chargeRfLevel.appendChild(option);
+      });
+      chargeRfLevel.disabled = levels.length === 0;
+      calculateChargeButton.disabled = levels.length === 0;
+      if (levels.length) {
+        const defaultLevel = levels.reduce((best, level) => Math.abs(level + 10) < Math.abs(best + 10) ? level : best);
+        chargeRfLevel.value = String(levels.includes(previousLevel) ? previousLevel : defaultLevel);
+      }
+      chargeDataNote.textContent = levels.length
+        ? 'Choose a measured RF power level. Separate estimates are calculated for each harvester and frequency combination.'
+        : 'No measured voltage sweeps match the selected harvesters and frequency/source filters.';
+    }
+
+    function integrateChargeTime(fit, farads, startVoltage, endVoltage, intervals = CHARGE_INTERVALS) {
+      const unavailable = (status) => ({ status, seconds: null, trace: [] });
+      const tolerance = 1e-12 * Math.max(1, fit.xMax);
+      if (startVoltage < fit.xMin - tolerance || endVoltage > fit.xMax + tolerance) {
+        return unavailable('outside_range');
+      }
+      // Check the whole transition, including any interior minimum, so a narrow
+      // zero/negative-power interval cannot be missed by the integration grid.
+      const startPower = evaluateQuadratic(fit, startVoltage);
+      const endPower = evaluateQuadratic(fit, endVoltage);
+      if (startPower < 0 || endPower <= 0 || (startVoltage > 0 && startPower === 0)) {
+        return unavailable('nonpositive_power');
+      }
+      if (startVoltage === 0 && startPower === 0) {
+        const slope = (fit.coefficients[1] - 2 * fit.coefficients[2] * fit.xCenter / fit.xScale) / fit.xScale;
+        if (slope <= 0) {
+          return unavailable('no_finite_time');
+        }
+      }
+      if (fit.coefficients[2] > 0) {
+        const minimumVoltage = fit.xCenter - fit.xScale * fit.coefficients[1] / (2 * fit.coefficients[2]);
+        if (minimumVoltage > startVoltage && minimumVoltage < endVoltage
+          && evaluateQuadratic(fit, minimumVoltage) <= 0) {
+          return unavailable('nonpositive_power');
+        }
+      }
+
+      let seconds = 0;
+      const trace = [{ x: 0, y: startVoltage }];
+      const stride = Math.max(1, Math.floor(intervals / 100));
+      for (let i = 0; i < intervals; i += 1) {
+        const left = startVoltage + (endVoltage - startVoltage) * i / intervals;
+        const right = startVoltage + (endVoltage - startVoltage) * (i + 1) / intervals;
+        const power = evaluateQuadratic(fit, (left + right) / 2);
+        if (power <= 0) {
+          return unavailable('nonpositive_power');
+        }
+        seconds += farads * (right - left) * (right + left) / (2 * power);
+        if (!Number.isFinite(seconds)) {
+          return unavailable('numerical_limit');
+        }
+        if ((i + 1) % stride === 0 || i + 1 === intervals) {
+          trace.push({ x: seconds, y: right });
+        }
+      }
+      return { status: 'estimated', seconds, trace };
+    }
+
+    function calculateChargeTime() {
+      clearChargeResults();
+      const farads = Number.parseFloat(capacitanceInput.value) * CAPACITANCE_UNITS[capacitanceUnit.value];
+      const startVoltage = Number.parseFloat(chargeStartVoltage.value);
+      const endVoltage = Number.parseFloat(chargeEndVoltage.value);
+      const level = Number.parseFloat(chargeRfLevel.value);
+      const fail = (message) => {
+        chargeError.textContent = message;
+        chargeError.classList.remove('hidden');
+      };
+      if (!Number.isFinite(farads) || farads <= 0) {
+        fail('Enter a finite capacitance greater than zero.');
+        return;
+      }
+      if (![startVoltage, endVoltage].every(Number.isFinite) || startVoltage < 0 || endVoltage <= startVoltage) {
+        fail('Enter a nonnegative initial voltage and a target voltage greater than the initial voltage.');
+        return;
+      }
+      const groups = new Map();
+      availableChargeRows().filter((entry) => entry.level === level).forEach((entry) => {
+        const conditions = CHARGE_CONDITION_KEYS.map((key) => ({ key, value: normalizeFilterValue(entry.row[key]) }));
+        const key = JSON.stringify([entry.harvester, ...conditions.map((part) => part.value)]);
+        if (!groups.has(key)) {
+          const suffix = formatFilterParts(conditions);
+          groups.set(key, { harvester: entry.harvester, conditions, label: entry.harvester + ' (' + suffix + ')', points: [] });
+        }
+        groups.get(key).points.push({ x: entry.voltage, y: entry.power });
+      });
+      if (groups.size === 0) {
+        fail('Select a measured RF input power for the selected harvesters and frequency/source filters.');
+        return;
+      }
+
+      const datasets = [];
+      Array.from(groups.values()).forEach((entry, index) => {
+        const fit = fitQuadratic([{ x: 0, y: 0 }, ...entry.points]);
+        const result = fit ? integrateChargeTime(fit, farads, startVoltage, endVoltage)
+          : { status: 'insufficient_data', seconds: null, trace: [] };
+        chargeResultData.push({ ...entry, fit, ...result, farads, startVoltage, endVoltage, level });
+        const row = document.createElement('tr');
+        [entry.label, result.seconds === null ? '—' : Number(result.seconds.toPrecision(8)),
+          CHARGE_STATUS_LABELS[result.status], entry.points.length, fit?.a ?? '—', fit?.b ?? '—', fit?.c ?? '—'].forEach((value) => {
+          const cell = document.createElement('td');
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        });
+        chargeResultRows.appendChild(row);
+        if (result.status === 'estimated') {
+          datasets.push({ label: entry.label, data: result.trace, borderColor: getColor(index),
+            backgroundColor: getColor(index), showLine: true, pointRadius: 0, borderWidth: 2 });
+        }
+      });
+      const estimatedCount = datasets.length;
+      document.getElementById('charge-summary').textContent = capacitanceInput.value + ' ' + capacitanceUnit.value
+        + ', ' + startVoltage + ' V → ' + endVoltage + ' V, PRF = '
+        + chargeRfLevel.selectedOptions[0].textContent + '. Estimated ' + estimatedCount + ' of ' + groups.size + ' operating points.';
+      chargeResults.classList.remove('hidden');
+      downloadChargeButton.disabled = false;
+      if (datasets.length) {
+        chargeChartArea.classList.remove('hidden');
+        chargeChartInstance = new Chart(document.getElementById('charge-chart').getContext('2d'), {
+          type: 'scatter', data: { datasets },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+              x: { type: 'linear', min: 0, title: { display: true, text: 'Elapsed time (s)' } },
+              y: { type: 'linear', min: startVoltage, max: endVoltage, title: { display: true, text: 'Capacitor voltage (V)' } },
+            },
+          },
+        });
+      }
+    }
+
+    function downloadChargeCsv() {
+      if (!chargeResultData.length) {
+        return;
+      }
+      const header = ['harvester', ...CHARGE_CONDITION_KEYS, 'prf_dbm', 'prf_w', 'capacitance_f',
+        'initial_voltage_v', 'target_voltage_v', 'charge_time_s', 'status', 'measured_points',
+        'a_w_per_v2', 'b_w_per_v', 'c_w', 'max_measured_voltage_v', 'integration_intervals'];
+      const lines = [header.map(csvEscape).join(',')];
+      chargeResultData.forEach((entry) => {
+        const conditions = new Map(entry.conditions.map((part) => [part.key, part.value]));
+        lines.push([entry.harvester, ...CHARGE_CONDITION_KEYS.map((key) => conditions.get(key)), entry.level,
+          convertAxisValue('level_dbm', entry.level, 'W'), entry.farads, entry.startVoltage, entry.endVoltage,
+          entry.seconds, entry.status, entry.points.length, entry.fit?.a, entry.fit?.b, entry.fit?.c,
+          entry.fit?.xMax, CHARGE_INTERVALS].map(csvEscape).join(','));
+      });
+      triggerCsvDownload(lines.join('\n'), 'harvester-charge-time');
+    }
+
     function csvEscape(value) {
       if (value === null || value === undefined) {
         return '';
@@ -712,10 +1254,13 @@
       URL.revokeObjectURL(url);
     }
 
-    function buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters) {
+    function buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters, settings) {
       const series = new Map();
       const signatureKeys = new Set();
       const harvesterOrder = new Map(selectedHarvesters.map((name, idx) => [name, idx]));
+      const groupKeys = settings.groupPowerConditions
+        ? POWER_FIT_CONDITION_KEYS.filter((key) => columnKeys.includes(key) && !chartFilters.has(key))
+        : [];
 
       selectedHarvesters.forEach((name) => {
         const rows = harvesterData.get(name) || [];
@@ -724,9 +1269,12 @@
           if (signatureParts === null) {
             return;
           }
+          groupKeys.forEach((key) => {
+            signatureParts.push({ key, value: normalizeFilterValue(row[key]) });
+          });
 
-          const xVal = Number.parseFloat(row[xKey]);
-          const yVal = Number.parseFloat(row[yKey]);
+          const xVal = convertAxisValue(xKey, row[xKey], settings.xUnit);
+          const yVal = convertAxisValue(yKey, row[yKey], settings.yUnit);
           if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) {
             return;
           }
@@ -742,9 +1290,13 @@
               signatureKey,
               signatureParts,
               points: [],
+              measuredPoints: [],
             });
           }
           series.get(seriesKey).points.push({ x: xVal, y: yVal });
+          if (String(row.source).trim().toLowerCase() === 'measured') {
+            series.get(seriesKey).measuredPoints.push({ x: xVal, y: yVal });
+          }
         });
       });
 
@@ -766,7 +1318,7 @@
         entry.points.sort((a, b) => a.x - b.x);
       });
 
-      return { sortedSeries, signatureIndex };
+      return { sortedSeries, signatureIndex, groupKeys };
     }
 
     function downloadCsv() {
@@ -792,8 +1344,8 @@
       triggerCsvDownload(csv, 'harvester-data');
     }
 
-    function buildChartCsv(sortedSeries, xKey, yKey, activeFilterKeys) {
-      const header = ['harvester', 'series', xKey, yKey, ...activeFilterKeys];
+    function buildChartCsv(sortedSeries, xKey, yKey, activeFilterKeys, settings) {
+      const header = ['harvester', 'series', axisCsvKey(xKey, settings.xUnit), axisCsvKey(yKey, settings.yUnit), ...activeFilterKeys];
       const lines = [header.map(csvEscape).join(',')];
 
       sortedSeries.forEach((entry) => {
@@ -830,19 +1382,21 @@
       const xKey = xAxisSelect.value;
       const yKey = yAxisSelect.value;
       const chartFilters = selectedChartFilters();
-      const chartData = buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters);
+      const settings = chartSettings(xKey, yKey);
+      const chartData = buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters, settings);
       if (!chartData) {
         showError('No numeric chart data available for the selected axes and filters.');
         return;
       }
 
-      const activeFilterKeys = Array.from(chartFilters.keys());
-      const chartCsv = buildChartCsv(chartData.sortedSeries, xKey, yKey, activeFilterKeys);
+      const activeFilterKeys = [...chartFilters.keys(), ...chartData.groupKeys];
+      const chartCsv = buildChartCsv(chartData.sortedSeries, xKey, yKey, activeFilterKeys, settings);
       triggerCsvDownload(chartCsv, 'harvester-chart-data');
     }
 
     function plotChart() {
       clearError();
+      clearFitResults();
       const selectedHarvesters = selectedValues(harvesterList);
       if (selectedHarvesters.length === 0) {
         showError('Select at least one harvester.');
@@ -856,13 +1410,20 @@
       const xKey = xAxisSelect.value;
       const yKey = yAxisSelect.value;
       const chartFilters = selectedChartFilters();
-      const chartData = buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters);
+      const settings = chartSettings(xKey, yKey);
+      if (quadraticFit.checked && (!powerFitAxesSelected()
+        || !POWER_UNITS[settings.xUnit] || !POWER_UNITS[settings.yUnit])) {
+        showError('Fitting requires RF input power (X) and measured DC output power (Y), both in linear power units.');
+        return;
+      }
+      const chartData = buildChartSeriesData(selectedHarvesters, xKey, yKey, chartFilters, settings);
       if (!chartData) {
         showError('No numeric data available for the selected axes and filters.');
         return;
       }
 
       const datasets = [];
+      let skippedFits = 0;
       chartData.sortedSeries.forEach((entry, idx) => {
         const color = getColor(idx);
         const suffix = formatFilterParts(entry.signatureParts);
@@ -875,6 +1436,26 @@
           pointRadius: 3,
           showLine: false,
         });
+        if (quadraticFit.checked) {
+          const fit = fitQuadratic(entry.measuredPoints);
+          if (!fit) {
+            skippedFits += 1;
+            return;
+          }
+          fitParameterData.push({ harvester: entry.harvester, label, xUnit: settings.xUnit, yUnit: settings.yUnit, signatureParts: entry.signatureParts, fit });
+          datasets.push({
+            label: label + ' (quadratic fit)',
+            data: quadraticCurve(fit),
+            borderColor: withOpacity(color, 0.5),
+            backgroundColor: withOpacity(color, 0.5),
+            borderDash: [6, 4],
+            borderWidth: 2,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            showLine: true,
+            fill: false,
+          });
+        }
       });
 
       if (chartInstance) {
@@ -892,14 +1473,19 @@
           },
           scales: {
             x: {
-              title: { display: true, text: termMetaForKey(xKey).name },
+              type: 'linear',
+              title: { display: true, text: axisLabel(xKey, settings.xUnit) },
             },
             y: {
-              title: { display: true, text: termMetaForKey(yKey).name },
+              type: 'linear',
+              title: { display: true, text: axisLabel(yKey, settings.yUnit) },
             },
           },
         },
       });
+      if (quadraticFit.checked) {
+        renderFitResults(settings.xUnit, settings.yUnit, skippedFits);
+      }
     }
 
     async function loadData() {
@@ -957,29 +1543,84 @@
         DEFAULT_Y_AXIS_KEY,
         columnListData.length > 1 ? 1 : 0
       );
-      renderSelect(xAxisSelect, columnListData, xAxisDefaultIndex, { labelForItem: columnLabelForItem });
-      renderSelect(yAxisSelect, columnListData, yAxisDefaultIndex, { labelForItem: columnLabelForItem });
+      renderSelect(xAxisSelect, columnListData, xAxisDefaultIndex, { labelForItem: chartAxisMetaForKey });
+      renderSelect(yAxisSelect, columnListData, yAxisDefaultIndex, { labelForItem: chartAxisMetaForKey });
+      renderAxisUnits(xAxisSelect, xUnitSelect, 'x-unit-field');
+      renderAxisUnits(yAxisSelect, yUnitSelect, 'y-unit-field');
+      syncFitAvailability();
 
       const handleHarvesterChange = () => {
+        clearFitResults();
         updateHarvesterToggle();
         renderChartFilters();
+        refreshChargeControls();
       };
       const handleAxisChange = (select) => {
-        setSelectTitle(select, columnLabelForItem);
+        clearFitResults();
+        setSelectTitle(select, chartAxisMetaForKey);
+        renderAxisUnits(xAxisSelect, xUnitSelect, 'x-unit-field');
+        renderAxisUnits(yAxisSelect, yUnitSelect, 'y-unit-field');
+        syncFitAvailability();
+        if (quadraticFit.checked && xUnitSelect.value === 'dBm') {
+          quadraticFit.checked = false;
+        }
         renderChartFilters();
+        refreshChargeControls();
       };
 
       updateHarvesterToggle();
       renderChartFilters();
+      refreshChargeControls();
       harvesterList.addEventListener('change', handleHarvesterChange);
       xAxisSelect.addEventListener('change', () => handleAxisChange(xAxisSelect));
       yAxisSelect.addEventListener('change', () => handleAxisChange(yAxisSelect));
     }
 
     downloadButton.addEventListener('click', downloadCsv);
-    clearFiltersButton.addEventListener('click', clearChartFilters);
+    clearFiltersButton.addEventListener('click', () => {
+      clearChartFilters();
+      clearFitResults();
+      refreshChargeControls();
+    });
+    chartFilterList.addEventListener('change', () => {
+      clearFitResults();
+      refreshChargeControls();
+    });
+    const handleUnitChange = () => {
+      clearFitResults();
+      if (xUnitSelect.value === 'dBm') {
+        quadraticFit.checked = false;
+      }
+      syncFitAvailability();
+      if (chartInstance) {
+        plotChart();
+      }
+    };
+    xUnitSelect.addEventListener('change', handleUnitChange);
+    yUnitSelect.addEventListener('change', handleUnitChange);
+    quadraticFit.addEventListener('change', () => {
+      syncFitAvailability();
+      if (quadraticFit.checked && xUnitSelect.value === 'dBm') {
+        xUnitSelect.value = 'µW';
+      }
+      if (chartInstance) {
+        plotChart();
+      } else {
+        clearFitResults();
+      }
+    });
     plotButton.addEventListener('click', plotChart);
     downloadChartButton.addEventListener('click', downloadChartCsv);
+    downloadFitButton.addEventListener('click', downloadFitParameters);
+    [capacitanceInput, chargeStartVoltage, chargeEndVoltage].forEach((input) => {
+      input.addEventListener('input', clearChargeResults);
+    });
+    [capacitanceUnit, chargeRfLevel].forEach((select) => {
+      select.addEventListener('change', clearChargeResults);
+    });
+    chargeRfUnit.addEventListener('change', refreshChargeControls);
+    calculateChargeButton.addEventListener('click', calculateChargeTime);
+    downloadChargeButton.addEventListener('click', downloadChargeCsv);
     async function init() {
       await loadTermMeta();
       await loadData();
