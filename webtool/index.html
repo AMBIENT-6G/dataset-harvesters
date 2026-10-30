@@ -340,9 +340,7 @@
               <input type="number" id="charge-end-voltage" value="1" min="0" step="any">
             </div>
             <div class="field">
-              <label for="charge-rf-level">Available RF input power, PRF</label>
-              <select id="charge-rf-level" disabled></select>
-              <label for="charge-rf-unit">Units
+              <label for="charge-rf-unit">RF input power axis units
                 <select id="charge-rf-unit">
                   <option>dBm</option><option>W</option><option>mW</option><option>µW</option><option>nW</option><option>pW</option>
                 </select>
@@ -354,19 +352,11 @@
           <p id="charge-data-note" class="note" style="margin-top: 8px;"></p>
           <div id="charge-error" class="errors hidden" role="alert"></div>
           <div class="actions" style="margin-top: 12px;">
-            <button type="button" id="calculate-charge-button" disabled>Calculate Charge Time</button>
+            <button type="button" id="calculate-charge-button" disabled>Plot Charge Time vs RF Power</button>
             <button type="button" id="download-charge-button" class="secondary" disabled>Download Charge-Time CSV</button>
           </div>
           <div id="charge-results" class="fit-results hidden" aria-live="polite">
             <p id="charge-summary" class="note"></p>
-            <div class="fit-table-scroll">
-              <table aria-label="Capacitor charge-time estimates">
-                <thead>
-                  <tr><th scope="col">Series</th><th scope="col">Model</th><th scope="col">Time (s)</th><th scope="col">Status</th><th scope="col">Data points</th><th scope="col">a (W/V²)</th><th scope="col">b (W/V)</th><th scope="col">c (W)</th></tr>
-                </thead>
-                <tbody id="charge-result-rows"></tbody>
-              </table>
-            </div>
             <div id="charge-chart-area" class="chart-area hidden">
               <div class="actions">
                 <button type="button" id="reset-charge-zoom" class="secondary">Reset Zoom</button>
@@ -374,6 +364,17 @@
               </div>
               <div class="chart-viewport"><canvas id="charge-chart"></canvas></div>
             </div>
+            <details>
+              <summary>Per-power results and model parameters</summary>
+              <div class="fit-table-scroll">
+                <table aria-label="Capacitor charge-time estimates">
+                  <thead>
+                    <tr><th scope="col">Series</th><th scope="col" id="charge-rf-heading">PRF</th><th scope="col">Model</th><th scope="col">Time (s)</th><th scope="col">Status</th><th scope="col">Data points</th><th scope="col">a (W/V²)</th><th scope="col">b (W/V)</th><th scope="col">c (W)</th></tr>
+                  </thead>
+                  <tbody id="charge-result-rows"></tbody>
+                </table>
+              </div>
+            </details>
           </div>
         </fieldset>
       </form>
@@ -419,7 +420,6 @@
     const capacitanceUnit = document.getElementById('capacitance-unit');
     const chargeStartVoltage = document.getElementById('charge-start-voltage');
     const chargeEndVoltage = document.getElementById('charge-end-voltage');
-    const chargeRfLevel = document.getElementById('charge-rf-level');
     const chargeRfUnit = document.getElementById('charge-rf-unit');
     const chargeDataNote = document.getElementById('charge-data-note');
     const chargeError = document.getElementById('charge-error');
@@ -1103,24 +1103,10 @@
 
     function refreshChargeControls() {
       clearChargeResults();
-      const previousLevel = Number.parseFloat(chargeRfLevel.value);
       const levels = Array.from(new Set(availableChargeRows().map((entry) => entry.level))).sort((a, b) => a - b);
-      chargeRfLevel.replaceChildren();
-      levels.forEach((level) => {
-        const option = document.createElement('option');
-        option.value = String(level);
-        const power = convertAxisValue('level_dbm', level, chargeRfUnit.value);
-        option.textContent = Number(power.toPrecision(6)) + ' ' + chargeRfUnit.value;
-        chargeRfLevel.appendChild(option);
-      });
-      chargeRfLevel.disabled = levels.length === 0;
       calculateChargeButton.disabled = levels.length === 0;
-      if (levels.length) {
-        const defaultLevel = levels.reduce((best, level) => Math.abs(level + 10) < Math.abs(best + 10) ? level : best);
-        chargeRfLevel.value = String(levels.includes(previousLevel) ? previousLevel : defaultLevel);
-      }
       chargeDataNote.textContent = levels.length
-        ? 'Choose an available RF power level. Separate estimates are calculated for each harvester, frequency combination and data source.'
+        ? 'Plots charge time across all ' + levels.length + ' available RF input-power levels. Each curve keeps harvester, frequency and data source separate. Gaps indicate unavailable estimates.'
         : 'No voltage/power data match the selected harvesters and frequency/source filters.';
     }
 
@@ -1196,7 +1182,7 @@
       const farads = Number.parseFloat(capacitanceInput.value) * CAPACITANCE_UNITS[capacitanceUnit.value];
       const startVoltage = Number.parseFloat(chargeStartVoltage.value);
       const endVoltage = Number.parseFloat(chargeEndVoltage.value);
-      const level = Number.parseFloat(chargeRfLevel.value);
+      const rfUnit = chargeRfUnit.value;
       const fail = (message) => {
         chargeError.textContent = message;
         chargeError.classList.remove('hidden');
@@ -1210,23 +1196,25 @@
         return;
       }
       const groups = new Map();
-      availableChargeRows().filter((entry) => entry.level === level).forEach((entry) => {
+      availableChargeRows().forEach((entry) => {
         const conditions = CHARGE_CONDITION_KEYS.map((key) => ({ key, value: normalizeFilterValue(entry.row[key]) }));
-        const key = JSON.stringify([entry.harvester, entry.source, ...conditions.map((part) => part.value)]);
+        const key = JSON.stringify([entry.harvester, entry.source, entry.level, ...conditions.map((part) => part.value)]);
         if (!groups.has(key)) {
           const suffix = formatFilterParts(conditions);
-          groups.set(key, { harvester: entry.harvester, source: entry.source, conditions,
+          groups.set(key, { harvester: entry.harvester, source: entry.source, level: entry.level, conditions,
             label: entry.harvester + ' (' + entry.source + ', ' + suffix + ')', points: [] });
         }
         groups.get(key).points.push({ x: entry.voltage, y: entry.power });
       });
       if (groups.size === 0) {
-        fail('Select an available RF input power for the selected harvesters and frequency/source filters.');
+        fail('No voltage/power data match the selected harvesters and frequency/source filters.');
         return;
       }
 
-      const datasets = [];
-      Array.from(groups.values()).forEach((entry, index) => {
+      const series = new Map();
+      let estimatedCount = 0;
+      document.getElementById('charge-rf-heading').textContent = 'PRF (' + rfUnit + ')';
+      Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label) || a.level - b.level).forEach((entry) => {
         let fit = fitQuadratic(entry.points);
         let model = 'relative_quadratic';
         if (!fit && entry.source === 'datasheet') {
@@ -1237,9 +1225,11 @@
         }
         const result = fit ? integrateChargeTime(fit, farads, startVoltage, endVoltage)
           : { status: 'insufficient_data', seconds: null, trace: [] };
-        chargeResultData.push({ ...entry, model, fit, ...result, farads, startVoltage, endVoltage, level });
+        chargeResultData.push({ ...entry, model, fit, status: result.status, seconds: result.seconds,
+          farads, startVoltage, endVoltage, rfUnit });
+        const rfPower = convertAxisValue('level_dbm', entry.level, rfUnit);
         const row = document.createElement('tr');
-        [entry.label, model === 'constant_power_datasheet' ? 'Constant-power approximation' : 'Relative-error quadratic',
+        [entry.label, Number(rfPower.toPrecision(8)), model === 'constant_power_datasheet' ? 'Constant-power approximation' : 'Relative-error quadratic',
           result.seconds === null ? '—' : Number(result.seconds.toPrecision(8)),
           CHARGE_STATUS_LABELS[result.status] + (fit?.excludedZeroCount ? ' (' + fit.excludedZeroCount + ' zero-power points excluded)' : ''),
           entry.points.length, fit?.a ?? '—', fit?.b ?? '—', fit?.c ?? '—'].forEach((value) => {
@@ -1248,15 +1238,24 @@
           row.appendChild(cell);
         });
         chargeResultRows.appendChild(row);
+        const seriesKey = JSON.stringify([entry.harvester, entry.source, ...entry.conditions.map((part) => part.value)]);
+        if (!series.has(seriesKey)) {
+          const color = getColor(series.size);
+          series.set(seriesKey, { label: entry.label, data: [], borderColor: color,
+            backgroundColor: color, showLine: true, spanGaps: false, pointRadius: 3, borderWidth: 2,
+            borderDash: entry.source === 'datasheet' ? [6, 4] : [] });
+        }
+        series.get(seriesKey).data.push({ x: rfPower, y: result.seconds });
         if (result.status === 'estimated') {
-          datasets.push({ label: entry.label, data: result.trace, borderColor: getColor(index),
-            backgroundColor: getColor(index), showLine: true, pointRadius: 0, borderWidth: 2 });
+          estimatedCount += 1;
         }
       });
-      const estimatedCount = datasets.length;
+      const datasets = Array.from(series.values()).filter((dataset) => dataset.data.some((point) => point.y !== null));
+      datasets.forEach((dataset) => dataset.data.sort((a, b) => a.x - b.x));
       document.getElementById('charge-summary').textContent = capacitanceInput.value + ' ' + capacitanceUnit.value
-        + ', ' + startVoltage + ' V → ' + endVoltage + ' V, PRF = '
-        + chargeRfLevel.selectedOptions[0].textContent + '. Estimated ' + estimatedCount + ' of ' + groups.size + ' operating points.';
+        + ', ' + startVoltage + ' V → ' + endVoltage + ' V. Estimated ' + estimatedCount + ' of '
+        + groups.size + ' RF operating points across ' + datasets.length + ' curves.'
+        + (estimatedCount ? '' : ' No points can be plotted for this transition. Open the per-power results to check model voltage ranges and charging-power availability.');
       chargeResults.classList.remove('hidden');
       downloadChargeButton.disabled = false;
       if (datasets.length) {
@@ -1267,8 +1266,8 @@
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { position: 'top' }, zoom: chartZoomOptions() },
             scales: {
-              x: { type: 'linear', min: 0, title: { display: true, text: 'Elapsed time (s)' } },
-              y: { type: 'linear', min: startVoltage, max: endVoltage, title: { display: true, text: 'Capacitor voltage (V)' } },
+              x: { type: 'linear', title: { display: true, text: axisLabel('level_dbm', rfUnit) } },
+              y: { type: 'linear', min: 0, title: { display: true, text: 'Capacitor charge time (s)' } },
             },
           },
         });
@@ -1281,7 +1280,7 @@
       }
       const header = ['harvester', 'source', 'model', ...CHARGE_CONDITION_KEYS, 'prf_dbm', 'prf_w', 'capacitance_f',
         'initial_voltage_v', 'target_voltage_v', 'charge_time_s', 'status', 'data_points',
-        'a_w_per_v2', 'b_w_per_v', 'c_w', 'max_model_voltage_v', 'integration_intervals', 'fit_objective', 'fitted_points', 'excluded_zero_points'];
+        'a_w_per_v2', 'b_w_per_v', 'c_w', 'max_model_voltage_v', 'integration_intervals', 'fit_objective', 'fitted_points', 'excluded_zero_points', 'chart_prf', 'chart_prf_unit'];
       const lines = [header.map(csvEscape).join(',')];
       chargeResultData.forEach((entry) => {
         const conditions = new Map(entry.conditions.map((part) => [part.key, part.value]));
@@ -1289,7 +1288,8 @@
           convertAxisValue('level_dbm', entry.level, 'W'), entry.farads, entry.startVoltage, entry.endVoltage,
           entry.seconds, entry.status, entry.points.length, entry.fit?.a, entry.fit?.b, entry.fit?.c,
           entry.fit?.xMax, CHARGE_INTERVALS, 'squared_relative_error', entry.fit?.pointCount,
-          entry.points.filter((point) => point.y === 0).length].map(csvEscape).join(','));
+          entry.points.filter((point) => point.y === 0).length,
+          convertAxisValue('level_dbm', entry.level, entry.rfUnit), entry.rfUnit].map(csvEscape).join(','));
       });
       triggerCsvDownload(lines.join('\n'), 'harvester-charge-time');
     }
@@ -1710,10 +1710,14 @@
     [capacitanceInput, chargeStartVoltage, chargeEndVoltage].forEach((input) => {
       input.addEventListener('input', clearChargeResults);
     });
-    [capacitanceUnit, chargeRfLevel].forEach((select) => {
-      select.addEventListener('change', clearChargeResults);
+    capacitanceUnit.addEventListener('change', clearChargeResults);
+    chargeRfUnit.addEventListener('change', () => {
+      if (chargeResultData.length) {
+        calculateChargeTime();
+      } else {
+        refreshChargeControls();
+      }
     });
-    chargeRfUnit.addEventListener('change', refreshChargeControls);
     calculateChargeButton.addEventListener('click', calculateChargeTime);
     downloadChargeButton.addEventListener('click', downloadChargeCsv);
     async function init() {
