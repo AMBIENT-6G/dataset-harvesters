@@ -197,6 +197,11 @@
       width: 100%;
       height: 360px;
     }
+    .chart-viewport {
+      position: relative;
+      height: 360px;
+      margin-top: 8px;
+    }
     button:disabled {
       opacity: 0.5;
       cursor: default;
@@ -292,7 +297,11 @@
         </fieldset>
 
         <div class="chart-area">
-          <canvas id="harvester-chart"></canvas>
+          <div class="actions">
+            <button type="button" id="reset-chart-zoom" class="secondary" disabled>Reset Zoom</button>
+            <span class="note">Scroll or pinch to zoom. Drag a rectangle to zoom into a region.</span>
+          </div>
+          <div class="chart-viewport"><canvas id="harvester-chart"></canvas></div>
         </div>
         <div id="fit-results" class="fit-results hidden" aria-live="polite">
           <p id="fit-equation">Pdc = a·PRF² + b·PRF + c</p>
@@ -359,7 +368,11 @@
               </table>
             </div>
             <div id="charge-chart-area" class="chart-area hidden">
-              <canvas id="charge-chart"></canvas>
+              <div class="actions">
+                <button type="button" id="reset-charge-zoom" class="secondary">Reset Zoom</button>
+                <span class="note">Scroll or pinch to zoom. Drag a rectangle to zoom into a region.</span>
+              </div>
+              <div class="chart-viewport"><canvas id="charge-chart"></canvas></div>
             </div>
           </div>
         </fieldset>
@@ -368,6 +381,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
   <script>
     const HARVESTERS = [
       { name: 'AEM40940', file: './json-export/AEM40940.json' },
@@ -908,6 +923,27 @@
       return color.replace('hsl(', 'hsla(').replace(')', ', ' + opacity + ')');
     }
 
+    function chartZoomOptions() {
+      return {
+        limits: {
+          x: { min: 'original', max: 'original' },
+          y: { min: 'original', max: 'original' },
+        },
+        zoom: {
+          mode: 'xy',
+          wheel: { enabled: true, speed: 0.1 },
+          pinch: { enabled: true },
+          drag: {
+            enabled: true,
+            threshold: 8,
+            backgroundColor: 'rgba(31, 79, 122, 0.15)',
+            borderColor: '#1f4f7a',
+            borderWidth: 1,
+          },
+        },
+      };
+    }
+
     function fitQuadratic(points) {
       if (points.length < 3 || new Set(points.map((point) => point.x)).size < 3) {
         return null;
@@ -1191,7 +1227,7 @@
           type: 'scatter', data: { datasets },
           options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'top' } },
+            plugins: { legend: { position: 'top' }, zoom: chartZoomOptions() },
             scales: {
               x: { type: 'linear', min: 0, title: { display: true, text: 'Elapsed time (s)' } },
               y: { type: 'linear', min: startVoltage, max: endVoltage, title: { display: true, text: 'Capacitor voltage (V)' } },
@@ -1481,6 +1517,7 @@
           maintainAspectRatio: false,
           plugins: {
             legend: { position: 'top' },
+            zoom: chartZoomOptions(),
           },
           scales: {
             x: {
@@ -1494,6 +1531,7 @@
           },
         },
       });
+      document.getElementById('reset-chart-zoom').disabled = false;
       if (quadraticFit.checked) {
         renderFitResults(settings.xUnit, settings.yUnit, fitAttempts);
       }
@@ -1623,6 +1661,12 @@
     plotButton.addEventListener('click', plotChart);
     downloadChartButton.addEventListener('click', downloadChartCsv);
     downloadFitButton.addEventListener('click', downloadFitParameters);
+    document.getElementById('reset-chart-zoom').addEventListener('click', () => {
+      chartInstance?.resetZoom?.();
+    });
+    document.getElementById('reset-charge-zoom').addEventListener('click', () => {
+      chargeChartInstance?.resetZoom?.();
+    });
     [capacitanceInput, chargeStartVoltage, chargeEndVoltage].forEach((input) => {
       input.addEventListener('input', clearChargeResults);
     });
