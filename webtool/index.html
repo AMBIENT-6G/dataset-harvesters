@@ -281,14 +281,8 @@
             <input type="checkbox" id="quadratic-fit">
             Fit Pdc versus linear PRF (2nd order polynomial)
           </label>
-          <label style="margin-top: 8px;" for="fit-source">Fit data source
-            <select id="fit-source">
-              <option value="measured" selected>Measured (calibrated load)</option>
-              <option value="datasheet">Datasheet</option>
-            </select>
-          </label>
           <p class="note">Fitting requires X = RF input power and Y = DC output power. Enabling it switches PRF from dBm to µW. Each fit keeps harvester, target voltage, operating frequency and tuning frequency separate.</p>
-          <p class="note">Measured data are fitted by default. Choose Datasheet to fit datasheet points; the fit and its exported parameters are labeled with their source.</p>
+          <p class="note">Each fit uses all plotted points in its series, including measured and datasheet data, after applying the chart filters.</p>
           <div class="actions" style="margin-top: 12px;">
             <button type="button" id="clear-filters-button" class="secondary">Clear Filters</button>
             <button type="button" id="plot-button" class="secondary">Plot Chart</button>
@@ -401,7 +395,6 @@
     const downloadChartButton = document.getElementById('download-chart-button');
     const chartCanvas = document.getElementById('harvester-chart');
     const quadraticFit = document.getElementById('quadratic-fit');
-    const fitSource = document.getElementById('fit-source');
     const fitResults = document.getElementById('fit-results');
     const fitEquation = document.getElementById('fit-equation');
     const fitNote = document.getElementById('fit-note');
@@ -811,7 +804,7 @@
         return { name: 'RF Input Power (PRF)', explanation: 'RF input power. Choose dBm or linear power units below.' };
       }
       if (key === 'pwr_pw') {
-        return { name: 'DC Output Power (Pdc)', explanation: 'DC output power. Fits use measured values from the calibrated programmable load.' };
+        return { name: 'DC Output Power (Pdc)', explanation: 'DC output power. Fitting uses all plotted points in each series.' };
       }
       return termMetaForKey(key);
     }
@@ -843,14 +836,9 @@
 
     function syncFitAvailability() {
       quadraticFit.disabled = !powerFitAxesSelected();
-      fitSource.disabled = quadraticFit.disabled;
       if (quadraticFit.disabled) {
         quadraticFit.checked = false;
       }
-    }
-
-    function selectedFitSource() {
-      return fitSource.value === 'datasheet' ? 'datasheet' : 'measured';
     }
 
     function chartSettings(xKey, yKey) {
@@ -990,15 +978,7 @@
       downloadFitButton.disabled = true;
     }
 
-    function fitFailureReason(entry, points, source) {
-      if (points.length === 0) {
-        const otherSource = source === 'measured' ? 'datasheet' : 'measured';
-        const otherPoints = source === 'measured' ? entry.datasheetPoints : entry.measuredPoints;
-        return 'No ' + source + ' points.' + (otherPoints.length
-          ? ' This series has ' + otherPoints.length + ' ' + otherSource
-            + ' points; choose ' + otherSource + ' in Fit data source to fit them.'
-          : ' Check the Data Source filter.');
-      }
+    function fitFailureReason(points) {
       const distinctCount = new Set(points.map((point) => point.x)).size;
       if (distinctCount < 3) {
         return 'Needs at least 3 distinct PRF values; found ' + distinctCount + '.';
@@ -1008,8 +988,7 @@
 
     function renderFitResults(xUnit, yUnit, attempts) {
       fitEquation.textContent = 'Pdc = a·PRF² + b·PRF + c; PRF in ' + xUnit + ', Pdc in ' + yUnit + '.';
-      fitNote.textContent = 'Least-squares fits use ' + selectedFitSource()
-        + ' DC output power versus RF input power, both in linear units. Coefficients use the units shown above. Curves are dashed at 50% opacity within the fitted data range. Fitted '
+      fitNote.textContent = 'Least-squares fits use all plotted DC output power points versus RF input power, both in linear units. Coefficients use the units shown above. Curves are dashed at 50% opacity within the fitted data range. Fitted '
         + fitParameterData.length + ' of ' + attempts.length + ' series; see each status below.';
       attempts.forEach((entry) => {
         const row = document.createElement('tr');
@@ -1321,16 +1300,11 @@
               signatureKey,
               signatureParts,
               points: [],
-              measuredPoints: [],
-              datasheetPoints: [],
+              sources: new Set(),
             });
           }
           series.get(seriesKey).points.push({ x: xVal, y: yVal });
-          if (String(row.source).trim().toLowerCase() === 'measured') {
-            series.get(seriesKey).measuredPoints.push({ x: xVal, y: yVal });
-          } else if (String(row.source).trim().toLowerCase() === 'datasheet') {
-            series.get(seriesKey).datasheetPoints.push({ x: xVal, y: yVal });
-          }
+          series.get(seriesKey).sources.add(normalizeFilterValue(row.source).trim().toLowerCase() || 'unspecified');
         });
       });
 
@@ -1471,11 +1445,11 @@
           showLine: false,
         });
         if (quadraticFit.checked) {
-          const source = selectedFitSource();
-          const points = source === 'measured' ? entry.measuredPoints : entry.datasheetPoints;
+          const source = Array.from(entry.sources).sort().join(' + ');
+          const points = entry.points;
           const fit = fitQuadratic(points);
           fitAttempts.push({ label, source, fit, pointCount: points.length,
-            status: fit ? 'Fitted' : fitFailureReason(entry, points, source) });
+            status: fit ? 'Fitted' : fitFailureReason(points) });
           if (!fit) {
             return;
           }
@@ -1635,12 +1609,6 @@
     };
     xUnitSelect.addEventListener('change', handleUnitChange);
     yUnitSelect.addEventListener('change', handleUnitChange);
-    fitSource.addEventListener('change', () => {
-      clearFitResults();
-      if (quadraticFit.checked) {
-        plotChart();
-      }
-    });
     quadraticFit.addEventListener('change', () => {
       syncFitAvailability();
       if (quadraticFit.checked && xUnitSelect.value === 'dBm') {
