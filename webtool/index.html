@@ -340,8 +340,8 @@
               </label>
             </div>
           </div>
-          <p class="note" style="margin-top: 12px;">Fits Pdc(V) = a·V² + b·V + c in watts using measured buffer voltages, with (0 V, 0 W) added as an anchor. Charge time sums C·(Vᵢ₊₁² − Vᵢ²)/(2·Pdc(Vmid)) over 1,000 voltage intervals, following Section III-A of the supplied paper. Defaults: 10 mF, 0.05 V to 1 V.</p>
-          <p class="note">Estimates assume constant RF input power and no additional capacitor leakage or device load. The model spans the zero-voltage anchor through the largest measured voltage; unavailable ranges and nonpositive charging power are reported per series.</p>
+          <p class="note" style="margin-top: 12px;">Fits Pdc(V) = a·V² + b·V + c in watts using the recorded buffer-voltage and power points. All three coefficients are fitted freely. Charge time sums C·(Vᵢ₊₁² − Vᵢ²)/(2·Pdc(Vmid)) over 1,000 voltage intervals, using the integration method in Section III-A of the supplied paper. Defaults: 10 mF, 0.05 V to 1 V.</p>
+          <p class="note">Estimates assume constant RF input power and no additional capacitor leakage or device load. The model spans the smallest through the largest measured voltage; unavailable ranges and nonpositive charging power are reported per series.</p>
           <p id="charge-data-note" class="note" style="margin-top: 8px;"></p>
           <div id="charge-error" class="errors hidden" role="alert"></div>
           <div class="actions" style="margin-top: 12px;">
@@ -1162,7 +1162,7 @@
 
       const datasets = [];
       Array.from(groups.values()).forEach((entry, index) => {
-        const fit = fitQuadratic([{ x: 0, y: 0 }, ...entry.points]);
+        const fit = fitQuadratic(entry.points);
         const result = fit ? integrateChargeTime(fit, farads, startVoltage, endVoltage)
           : { status: 'insufficient_data', seconds: null, trace: [] };
         chargeResultData.push({ ...entry, fit, ...result, farads, startVoltage, endVoltage, level });
